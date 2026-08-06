@@ -101,7 +101,7 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석 전용(런타임 임포트
         server_from_spec,
     )
 
-__version__ = "0.1.0.dev0"
+__version__ = "0.1.0"
 
 #: 지연 해석 대상 — :mod:`mcportal.mcp` 의 공개 심볼. ``import mcportal`` 시점에
 #: 임포트하지 않고, 처음 참조될 때 :func:`__getattr__` 가 끌어온다.

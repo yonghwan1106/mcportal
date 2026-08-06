@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcportal"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Quota-guarded runtime layer bridging Korean public data APIs (data.go.kr) into the MCP ecosystem"
 readme = "README.md"
 requires-python = ">=3.11"
