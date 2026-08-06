@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Yong Park
-"""cassette 테스트: 녹화 스크러빙(파일 스캔) → 무키 재생 → 미스 에러."""
+"""cassette 테스트: 녹화 스크러빙(파일 스캔) → 무키 재생 → 미스 에러 → 키 이름 전파(F10)."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from urllib.parse import quote, quote_plus
 
@@ -17,6 +18,9 @@ from mcportal.replay import (
     RecordingTransport,
     ReplayTransport,
 )
+
+# replay/__init__.py 는 통합자 소유이므로 원 모듈에서 직접 임포트한다.
+from mcportal.replay.scrub import DEFAULT_KEY_PARAMS
 
 # '+', '/', '=' 를 포함해 인코딩 변형이 서로 달라지는 가짜 키.
 FAKE_KEY = "ab12+CD/34=="
@@ -135,3 +139,91 @@ def test_replay_transport_never_touches_network() -> None:
     resp = replay.handle_request(request)
     assert resp.status_code == 200
     assert resp.json() == {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# F10 — 인증키 파라미터 이름 전파
+# ---------------------------------------------------------------------------
+CUSTOM_KEY_PARAMS = ("apiKey", "api_key")
+
+
+def test_default_key_params_field_is_not_written(tmp_path: Path) -> None:
+    # 기본값이면 저장 JSON에 key_params 키가 없다(W1 파일과 바이트 동일성 유지).
+    cassette = Cassette()
+    assert cassette.key_params == DEFAULT_KEY_PARAMS
+    path = tmp_path / "default.json"
+    cassette.save(path)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert "key_params" not in data
+    assert data["version"] == 1
+
+
+def test_custom_key_params_record_save_load_replay_roundtrip(tmp_path: Path) -> None:
+    inner = httpx.MockTransport(_mock_handler)
+    cassette = Cassette(key_params=CUSTOM_KEY_PARAMS)
+    # secrets 를 비워 두어 값 기반 스크러빙이 아니라 '키 이름' 기반 스크러빙만 검증한다.
+    recording = RecordingTransport(
+        inner, cassette, secrets=[], key_params=CUSTOM_KEY_PARAMS
+    )
+    with httpx.Client(transport=recording) as client:
+        client.get(BASE, params={"apiKey": "CUSTOM_SECRET", "pageNo": "1"})
+
+    path = tmp_path / "custom.json"
+    cassette.save(path)
+    raw = path.read_text(encoding="utf-8")
+    # 커스텀 키 이름이 파일에 기록되고, 그 값은 스크러빙됐다.
+    assert '"key_params"' in raw
+    assert "CUSTOM_SECRET" not in raw
+    assert SCRUB_PLACEHOLDER in raw
+
+    loaded = Cassette.load(path)
+    assert loaded.key_params == CUSTOM_KEY_PARAMS
+    # 무키 재생: 매칭 키에서 apiKey 가 제거되므로 키 없는 요청도 매칭된다.
+    replay = ReplayTransport(loaded)
+    with httpx.Client(transport=replay) as client:
+        replayed = client.get(BASE, params={"pageNo": "1"})
+    assert replayed.status_code == 200
+    assert "<resultCode>00</resultCode>" in replayed.text
+
+
+def test_w1_cassette_without_key_params_loads_with_default(tmp_path: Path) -> None:
+    # key_params 필드가 없는 W1 형식 카세트도 그대로 읽힌다(하위호환).
+    legacy = {
+        "version": 1,
+        "recorded_at": "2026-07-13T16:30:00+09:00",
+        "interactions": [
+            {
+                "request": {
+                    "method": "GET",
+                    "url": f"{BASE}?serviceKey={SCRUB_PLACEHOLDER}&pageNo=1",
+                    "params": {"serviceKey": SCRUB_PLACEHOLDER, "pageNo": "1"},
+                },
+                "response": {
+                    "status": 200,
+                    "headers": {"content-type": "application/json"},
+                    "body": '{"ok": true}',
+                },
+            }
+        ],
+    }
+    path = tmp_path / "legacy.json"
+    path.write_text(json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+
+    loaded = Cassette.load(path)
+    assert loaded.key_params == DEFAULT_KEY_PARAMS
+    replay = ReplayTransport(loaded)
+    with httpx.Client(transport=replay) as client:
+        resp = client.get(BASE, params={"pageNo": "1"})
+    assert resp.json() == {"ok": True}
+
+
+def test_miss_error_scrubs_custom_key_name(tmp_path: Path) -> None:
+    # 커스텀 키 이름을 쓰는 카세트에서도 미스 에러 메시지에 값이 새지 않는다.
+    cassette = Cassette(key_params=CUSTOM_KEY_PARAMS)
+    replay = ReplayTransport(cassette)
+    request = httpx.Request("GET", f"{BASE}/other?apiKey=CUSTOM_SECRET&pageNo=1")
+    with pytest.raises(CassetteMissError) as excinfo:
+        replay.handle_request(request)
+    message = str(excinfo.value)
+    assert "CUSTOM_SECRET" not in message
+    assert SCRUB_PLACEHOLDER in message

@@ -1,0 +1,23 @@
+{
+  "response": {
+    "body": {
+      "items": {
+        "item": [
+          {
+            "itemId": "A-001",
+            "note": "첫 번째 합성 항목",
+            "title": "가상 자료 하나",
+            "updatedAt": "2026-01-02"
+          }
+        ]
+      },
+      "numOfRows": 10,
+      "pageNo": 1,
+      "totalCount": 3
+    },
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "정상"
+    }
+  }
+}

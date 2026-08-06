@@ -31,10 +31,17 @@ class QuotaGuard:
     경유 호출만 집계하는 베스트에포트 추정으로, 관측과 소프트 경고에만 쓴다.
 
     스레드 안전: 내부 마킹 상태(_warned·_exhausted_keys)와 예산 판정은 가드
-    자체 Lock으로 보호한다. 다만 before_call(판정)→실제 상위 호출→after_call(기록)
-    구간은 상위 호출이 가드 밖에서 일어나므로 완전 원자화되지 않는다(한 논리
-    요청 내 최대 오버슈트 = 재시도 수). 하드 예산 상한은 그 한계 위에서 상한을
-    보증하는 신뢰 축이다.
+    자체 Lock으로 보호한다.
+
+    **예약(reservation) 카운터**: before_call 은 원장 기록 여부와 무관하게
+    in-flight 호출 1건을 즉시 선점하고(``_pending += 1``), after_call/release 가
+    반납한다. 판정 모수는 ``원장 count_today + pending`` 이다. 이것이 없으면
+    동시 요청이 전부 record 이전에 판정을 통과해 하드 상한을 그대로 넘어선다 —
+    sync 경로에서는 드러나지 않지만 MCP 서버는 정의상 동시 tool call 을 받고,
+    async 브리지가 요청마다 워커 스레드를 쓰므로 실사용에서 즉시 발생한다.
+
+    남는 한계는 **한 논리 요청 안의 재시도**뿐이다(예약 1건이 재시도 N회를
+    덮는다). 재시도는 ``record_retry`` 로 원장에 집계되므로 다음 판정부터 반영된다.
 
     Args:
         ledger: 사용량 원장.
@@ -60,6 +67,8 @@ class QuotaGuard:
         self._warned: set[tuple[str, str]] = set()
         # result_code 22로 소진 마킹된 키: {key_fp: day_kst}
         self._exhausted_keys: dict[str, str] = {}
+        # before_call 이 선점하고 after_call/release 가 반납하는 in-flight 예약 수.
+        self._pending = 0
 
     def before_call(
         self,
@@ -71,17 +80,23 @@ class QuotaGuard:
 
         ① 오늘 이 키가 쿼터초과(22)로 마킹됐으면 즉시 차단한다.
         ② 하드 예산 상한 도달 시 QuotaExhausted, 소프트 임계 초과 시 경고(중복 억제).
-        ③ 레이트 버킷이 있으면 토큰 확보까지 대기 후 진행한다.
+        ③ 통과하면 in-flight 예약을 1건 선점한다(반납은 after_call/release).
+        ④ 레이트 버킷이 있으면 토큰 확보까지 대기 후 진행한다.
+
+        판정에 쓰는 모수는 ``원장 count_today + 현재 예약 수`` 이며, 원장 조회를
+        **락 안에서** 수행한다. 조회를 락 밖에서 하면 동시 요청들이 모두 같은
+        낡은 값을 읽어 상한을 함께 통과한다.
         """
         day = kst_day(now)  # type: ignore[arg-type]
         fp = key_fp(key)
-
-        used = self._ledger.count_today(key, now=now)  # type: ignore[arg-type]
 
         should_warn = False
         with self._lock:
             # 당일이 아닌 소진 마킹을 정리(_exhausted_keys 무한 증가 방지).
             self._prune_exhausted_locked(day)
+
+            recorded = self._ledger.count_today(key, now=now)  # type: ignore[arg-type]
+            used = recorded + self._pending
 
             # ① 쿼터오류(22)로 오늘 소진 마킹된 키는 즉시 차단.
             if self._exhausted_keys.get(fp) == day:
@@ -96,6 +111,9 @@ class QuotaGuard:
                 if warn_key not in self._warned:
                     self._warned.add(warn_key)
                     should_warn = True
+
+            # ③ 통과 확정 — in-flight 를 즉시 선점한다.
+            self._pending += 1
 
         # 로깅은 락 밖에서(핸들러 지연이 락 구간을 늘리지 않게).
         if should_warn:
@@ -124,18 +142,72 @@ class QuotaGuard:
         status: str = "ok",
         now: Optional[object] = None,
     ) -> None:
-        """호출 직후 훅. 원장에 기록하고, result_code 22면 오늘 소진 상태로 마킹한다."""
+        """호출 직후 훅. 원장에 기록하고, result_code 22면 오늘 소진 상태로 마킹한다.
+
+        기록을 마친 뒤 :meth:`release` 로 예약을 반납한다. 원장 기록이 예약을
+        대체하는 시점이므로 순서가 중요하다(먼저 반납하면 그 사이에 들어온
+        동시 요청이 상한을 한 칸 더 통과한다).
+        """
         if result_code is not None and str(result_code) == _QUOTA_ERROR_CODE:
             status = "quota_error"
             with self._lock:
                 self._exhausted_keys[key_fp(key)] = kst_day(now)  # type: ignore[arg-type]
-        self._ledger.record(
-            key,
-            endpoint,
-            status=status,
-            result_code=result_code,
-            now=now,  # type: ignore[arg-type]
-        )
+        try:
+            self._ledger.record(
+                key,
+                endpoint,
+                status=status,
+                result_code=result_code,
+                now=now,  # type: ignore[arg-type]
+            )
+        finally:
+            self.release()
+
+    def release(self) -> None:
+        """before_call 이 선점한 in-flight 예약 1건을 반납한다.
+
+        :meth:`after_call` 이 정상 경로에서 호출하고, 상위 호출이 예외로 끝나
+        after_call 에 도달하지 못한 경로에서는 호출부가 ``finally`` 로 호출한다.
+        예약이 반납되지 않으면 그 자리는 영구히 소비된 것으로 남아, 예산이
+        실제보다 빨리 소진된 것처럼 보인다.
+        """
+        with self._lock:
+            if self._pending > 0:
+                self._pending -= 1
+
+    def raise_if_exhausted(
+        self,
+        key: str,
+        endpoint: str,
+        now: Optional[object] = None,
+    ) -> None:
+        """예약을 선점하지 않고 소진 여부만 확인한다.
+
+        ``result_code`` 22 를 받은 직후처럼 "이미 소비한 호출의 뒤처리"에서
+        일관된 :class:`QuotaExhausted` 를 만들 때 쓴다. :meth:`before_call` 을
+        쓰면 반납되지 않는 예약이 생긴다.
+
+        Raises:
+            QuotaExhausted: 소진 마킹됐거나 하드 상한에 도달했을 때.
+        """
+        day = kst_day(now)  # type: ignore[arg-type]
+        fp = key_fp(key)
+        with self._lock:
+            self._prune_exhausted_locked(day)
+            used = self._ledger.count_today(key, now=now) + self._pending  # type: ignore[arg-type]
+            if self._exhausted_keys.get(fp) == day:
+                raise QuotaExhausted(used, self._budget.limit)
+            if self._budget.status(used) is BudgetStatus.EXHAUSTED:
+                raise QuotaExhausted(used, self._budget.limit)
+
+    def close(self) -> None:
+        """가드가 쓰는 원장 커넥션을 닫는다.
+
+        :func:`~mcportal.transport.create_client` 사용자에게는 원장 핸들이
+        노출되지 않으므로, 트랜스포트가 이 메서드로 정리를 연쇄시킨다. 닫지
+        않으면 SQLite 파일 잠금이 남아 임시 디렉터리 정리가 실패한다(Windows).
+        """
+        self._ledger.close()
 
     def record_retry(
         self,

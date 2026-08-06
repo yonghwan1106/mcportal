@@ -1,0 +1,16 @@
+{
+  "response": {
+    "body": {
+      "items": {
+        "item": []
+      },
+      "numOfRows": 10,
+      "pageNo": 3,
+      "totalCount": 3
+    },
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "정상"
+    }
+  }
+}

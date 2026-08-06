@@ -24,7 +24,24 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "respx>=0.21"]
+# Optional MCP conversion layer. The core runtime dependency stays httpx-only;
+# fastmcp is required only by mcportal.mcp (spec -> MCP server delegation).
+#
+# Pinned to the 2.x line on purpose:
+#   (a) FastMCP.from_openapi() is a 2.x API and the delegation target,
+#   (b) 2.x is httpx-native, which matches the MCPortal runtime stack,
+#   (c) the "<3" upper bound physically blocks fresh-install drift into 3.x,
+#       where the OpenAPI entrypoint moved to OpenAPIProvider and the HTTP
+#       stack changed.
+# Measured locally on 2026-08-05: fastmcp 2.14.7 on Python 3.11.9 / httpx 0.28.1
+# builds a server and answers a tool call over a replay cassette (no key, no
+# network). W4 promotes this to an exact "==" pin plus a lockfile.
+# anyio is declared explicitly: mcp.py imports `anyio.to_thread` directly for the
+# sync->async transport bridge. httpx pulls anyio in transitively today, but a
+# direct import needs a direct declaration (PEP 508) so W4's exact pin + lockfile
+# constrains it instead of inheriting whatever httpx happens to resolve.
+mcp = ["fastmcp>=2.10,<3", "anyio>=4"]
+dev = ["pytest>=8", "respx>=0.21", "fastmcp>=2.10,<3", "anyio>=4"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcportal"]

@@ -1,0 +1,177 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "가상 행정통계 목록 서비스",
+    "description": "합성 픽스처(가상 기관 · .invalid 도메인).",
+    "version": "1.0.0",
+    "license": {"name": "KOGL 제1유형(예시)"}
+  },
+  "host": "apis.example.invalid",
+  "basePath": "/0000000/demoStats",
+  "schemes": ["https", "http"],
+  "produces": ["application/xml", "application/json"],
+  "paths": {
+    "/getRegionList": {
+      "parameters": [
+        {
+          "name": "SERVICEKEY",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "인증키(경로 공통 파라미터 자리에 있는 대문자 변형)"
+        }
+      ],
+      "get": {
+        "operationId": "지역별 목록 조회",
+        "summary": "지역별 목록 조회",
+        "tags": ["region", "list"],
+        "parameters": [
+          {
+            "name": "numOfRows",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "default": 10
+          },
+          {
+            "name": "pageNo",
+            "in": "query",
+            "required": true,
+            "type": "integer",
+            "description": "페이지 번호"
+          },
+          {
+            "name": "sidoCodes",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "시도 코드 목록"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": ["xml", "json"],
+            "description": "응답 형식"
+          },
+          {
+            "name": "attachedFile",
+            "in": "formData",
+            "required": false,
+            "type": "file",
+            "description": "W2 미지원 위치(formData). 조용히 버려져야 한다."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "정상",
+            "schema": {"$ref": "#/definitions/RegionListResponse"}
+          }
+        }
+      }
+    },
+    "/getOrgList": {
+      "get": {
+        "operationId": "기관별 목록 조회",
+        "summary": "기관별 목록 조회",
+        "parameters": [
+          {"name": "serviceKey", "in": "query", "required": true, "type": "string"},
+          {
+            "name": "pageNo",
+            "in": "query",
+            "required": true,
+            "type": "integer",
+            "description": "페이지 번호"
+          }
+        ],
+        "responses": {
+          "200": {"description": "정상"}
+        }
+      }
+    },
+    "/orgs/{orgCode}/report": {
+      "post": {
+        "operationId": "submitOrgReport",
+        "summary": "기관 보고 제출",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "orgCode",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "기관 코드"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/OrgReport"}
+          },
+          {"name": "serviceKey", "in": "query", "required": true, "type": "string"}
+        ],
+        "responses": {
+          "200": {
+            "description": "정상",
+            "schema": {
+              "type": "object",
+              "properties": {"accepted": {"type": "boolean"}}
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteOrgReport",
+        "summary": "W2 미지원 메서드(DELETE). 흡수되지 않아야 한다.",
+        "responses": {"200": {"description": "정상"}}
+      }
+    }
+  },
+  "definitions": {
+    "RegionListResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "object",
+          "properties": {
+            "body": {"$ref": "#/definitions/RegionBody"},
+            "header": {
+              "type": "object",
+              "properties": {
+                "resultCode": {"type": "string"},
+                "resultMsg": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "RegionBody": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sidoNm": {"type": "string"},
+              "value": {"type": "number"}
+            }
+          }
+        },
+        "totalCount": {"type": "integer"}
+      }
+    },
+    "OrgReport": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "title": {"type": "string"},
+        "amount": {"type": "integer"}
+      }
+    }
+  }
+}

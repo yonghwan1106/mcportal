@@ -1,0 +1,28 @@
+{
+  "response": {
+    "body": {
+      "items": {
+        "item": [
+          {
+            "itemId": "A-002",
+            "title": "가상 자료 둘",
+            "updatedAt": "2026-01-03"
+          },
+          {
+            "itemId": "A-003",
+            "note": "세 번째 합성 항목",
+            "title": "가상 자료 셋",
+            "updatedAt": "2026-01-04"
+          }
+        ]
+      },
+      "numOfRows": 10,
+      "pageNo": 2,
+      "totalCount": 3
+    },
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "정상"
+    }
+  }
+}

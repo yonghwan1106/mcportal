@@ -1,0 +1,84 @@
+{
+  "mcportal_rest_doc": 1,
+  "provider": "data.go.kr",
+  "service_id": "00000002",
+  "service_name": "가상 법령 정보 조회 서비스",
+  "description": "합성 픽스처. Swagger가 없는 표준 REST 문서형 소스를 사람이 옮겨 적은 수동 매핑 기술서다.",
+  "base_url": "https://apis.example.invalid/0000002/lawInfo",
+  "source_url": null,
+  "license_note": "KOGL 제1유형(예시)",
+  "key_param": "serviceKey",
+  "operations": [
+    {
+      "operation_id": "getLawList",
+      "method": "GET",
+      "path": "/getLawList",
+      "summary": "법령 목록 조회",
+      "description": "질의어로 가상 법령 목록을 조회한다. XML·JSON 이중 응답.",
+      "response_media_type": "application/xml",
+      "tags": ["law", "list"],
+      "parameters": [
+        {
+          "name": "pageNo",
+          "location": "query",
+          "required": true,
+          "type": "integer",
+          "description": "페이지 번호"
+        },
+        {
+          "name": "numOfRows",
+          "location": "query",
+          "required": true,
+          "type": "integer"
+        },
+        {
+          "name": "type",
+          "location": "query",
+          "required": false,
+          "type": "string",
+          "enum": ["xml", "json"],
+          "default": "xml",
+          "description": "응답 형식(XML 기본, JSON 선택)"
+        },
+        {
+          "name": "query",
+          "location": "query",
+          "required": false,
+          "type": "string",
+          "description": "검색 질의어"
+        },
+        {
+          "name": "serviceKey",
+          "location": "query",
+          "required": true,
+          "type": "string",
+          "description": "인증키(기술서에 남아 있어도 제거되어야 한다)"
+        }
+      ]
+    },
+    {
+      "operation_id": "getLawDetail",
+      "method": "GET",
+      "path": "getLawDetail",
+      "summary": "법령 본문 조회",
+      "response_media_type": "application/xml",
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "articles": {"type": "array", "items": {"type": "string"}},
+          "lawId": {"type": "string"}
+        }
+      },
+      "parameters": [
+        {
+          "name": "lawId",
+          "location": "query",
+          "required": true,
+          "type": "string",
+          "example": "L-0001",
+          "description": "법령 식별자"
+        }
+      ]
+    }
+  ]
+}

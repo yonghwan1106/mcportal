@@ -8,6 +8,7 @@ KST 날짜는 tzdata 의존 없이 UTC+9 고정 오프셋으로 산출한다(Win
 from __future__ import annotations
 
 import hashlib
+import os
 import sqlite3
 import threading
 from datetime import date, datetime, timedelta, timezone
@@ -19,6 +20,23 @@ _KST = timezone(timedelta(hours=9))
 _UTC = timezone.utc
 
 _DEFAULT_PATH = Path.home() / ".mcportal" / "ledger.db"
+
+#: 기본 원장 경로를 바꾸는 환경변수. F9로 가드가 항상 배선되면서 인자를 생략한
+#: ``create_client`` 도 원장 파일을 만들게 되었으므로, 홈 디렉터리에 쓰고 싶지 않은
+#: 환경(CI·컨테이너·공용 계정)이 위치를 옮길 수 있어야 한다.
+_ENV_LEDGER_PATH = "MCPORTAL_LEDGER"
+
+
+def default_ledger_path() -> Path:
+    """인자를 생략했을 때 쓰는 원장 경로를 돌려준다.
+
+    ``MCPORTAL_LEDGER`` 환경변수가 비어 있지 않으면 그 경로를, 아니면
+    ``~/.mcportal/ledger.db`` 를 쓴다.
+    """
+    raw = os.environ.get(_ENV_LEDGER_PATH)
+    if raw is not None and raw.strip():
+        return Path(raw.strip())
+    return _DEFAULT_PATH
 
 
 def key_fp(key: str) -> str:
@@ -46,10 +64,15 @@ class UsageLedger:
     테이블 calls(ts_utc, day_kst, key_fp, endpoint, status, result_code)와
     인덱스(day_kst, key_fp)를 자동 생성한다. 단일 커넥션(check_same_thread=False)
     + Lock으로 동시성을 보호한다.
+
+    ``path`` 를 생략하면 :func:`default_ledger_path` 를 쓴다(기본
+    ``~/.mcportal/ledger.db``, ``MCPORTAL_LEDGER`` 환경변수로 변경 가능).
+    커넥션은 반드시 :meth:`close` 로 닫아야 한다 — Windows 는 열린 SQLite 파일이
+    있는 디렉터리를 지우지 못한다.
     """
 
     def __init__(self, path: str | Path | None = None) -> None:
-        self.path: Path = Path(path) if path is not None else _DEFAULT_PATH
+        self.path: Path = Path(path) if path is not None else default_ledger_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)

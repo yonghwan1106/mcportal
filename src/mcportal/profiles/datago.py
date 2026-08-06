@@ -34,7 +34,14 @@ MULTIKEY_REFUSAL = (
 
 @dataclass(frozen=True)
 class ProviderProfile:
-    """공공데이터 제공자별 정책을 담은 불변 값 객체."""
+    """공공데이터 제공자별 정책을 담은 불변 값 객체.
+
+    Attributes:
+        key_param: 인증키 파라미터의 정본 이름(요청 주입에 쓰인다).
+        key_param_aliases: 같은 제공자가 병용하는 인증키 파라미터의 별칭들.
+            스크러빙·카세트 매칭에서 정본과 동등하게 취급된다. 기본값이 빈
+            튜플이므로 기존 생성자 호출은 전부 그대로 호환된다(F10).
+    """
 
     name: str
     key_param: str
@@ -43,6 +50,7 @@ class ProviderProfile:
     multi_key_supported: bool
     guidance_exhausted: str
     refusal_multikey: str
+    key_param_aliases: tuple[str, ...] = ()
 
 
 #: data.go.kr 정본 프로파일.
@@ -55,6 +63,32 @@ DATA_GO_KR = ProviderProfile(
     guidance_exhausted=EXHAUSTED_GUIDANCE,
     refusal_multikey=MULTIKEY_REFUSAL,
 )
+
+
+def key_params_of(profile: ProviderProfile) -> tuple[str, ...]:
+    """프로파일의 인증키 파라미터 이름들을 ``(정본, *별칭)`` 순서로 돌려준다.
+
+    대소문자를 무시해 중복을 제거하되, 표기는 프로파일에 적힌 것을 보존한다.
+    스크러빙(:mod:`mcportal.replay.scrub`)과 카세트 매칭이 "이 제공자에서
+    인증키로 간주할 파라미터 이름"을 한곳에서 얻기 위한 진입점이다.
+
+    Args:
+        profile: 대상 프로바이더 프로파일.
+
+    Returns:
+        중복이 제거된 인증키 파라미터 이름 튜플. 빈 이름은 제외한다.
+    """
+    seen: set[str] = set()
+    names: list[str] = []
+    for raw in (profile.key_param, *profile.key_param_aliases):
+        if not raw:
+            continue
+        lowered = raw.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        names.append(raw)
+    return tuple(names)
 
 
 class MultiKeyUnsupportedError(Exception):

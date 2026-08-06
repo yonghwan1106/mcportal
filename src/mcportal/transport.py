@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import time
 from pathlib import Path
 from typing import Callable, Optional, Union
@@ -27,6 +28,7 @@ from typing import Callable, Optional, Union
 import httpx
 
 from .profiles import DATA_GO_KR, ProviderProfile
+from .profiles.datago import key_params_of
 from .quota import DailyBudget, QuotaExhausted, QuotaGuard, UsageLedger, compute_delay
 from .replay import Cassette, RecordingTransport, ReplayTransport
 from .runtime.cache import TTLCache, make_key
@@ -40,6 +42,9 @@ _QUOTA_ERROR_CODE = "22"
 
 #: 캐시 히트를 표시하는 응답 헤더 이름.
 _CACHE_HEADER = "X-MCPortal-Cache"
+
+#: CALL_BUDGET 환경변수 이름(quota.budget 의 해석 규칙과 동일 값. 폴백 판정용).
+_ENV_CALL_BUDGET = "CALL_BUDGET"
 
 
 class MCPortalTransport(httpx.BaseTransport):
@@ -55,6 +60,9 @@ class MCPortalTransport(httpx.BaseTransport):
         max_retries: TransportError·5xx에 대한 최대 재시도 횟수.
         sleep: 백오프 대기 함수(테스트 주입용). 기본 time.sleep.
         fallback: 쿼터 소진 시 위임할 트랜스포트(예: ReplayTransport). None이면 재발생.
+        owns_guard: True 면 :meth:`close` 가 가드의 원장 커넥션까지 닫는다.
+            :func:`_build_transport` 가 직접 조립한 가드에만 True 를 준다(호출자가
+            넘겨 준 가드의 수명은 호출자 것이다).
     """
 
     def __init__(
@@ -67,6 +75,7 @@ class MCPortalTransport(httpx.BaseTransport):
         max_retries: int = 3,
         sleep: Callable[[float], None] = time.sleep,
         fallback: httpx.BaseTransport | None = None,
+        owns_guard: bool = False,
     ) -> None:
         self._service_key: str | None = (
             prepare_service_key(service_key) if service_key is not None else None
@@ -78,6 +87,7 @@ class MCPortalTransport(httpx.BaseTransport):
         self._max_retries = int(max_retries)
         self._sleep = sleep
         self._fallback = fallback
+        self._owns_guard = bool(owns_guard)
 
     # -- httpx 인터페이스 -------------------------------------------------
     def handle_request(self, request: httpx.Request) -> httpx.Response:
@@ -94,48 +104,60 @@ class MCPortalTransport(httpx.BaseTransport):
             if entry is not None:
                 return self._response_from_cache(entry.value, request)
 
-        # ③ 쿼터가드 before_call.
-        if self._guard is not None and self._service_key is not None:
+        # ③ 쿼터가드 before_call. 통과하면 in-flight 예약 1건이 선점되므로,
+        #    아래 구간은 반드시 after_call(기록+반납) 또는 release(반납)로 끝나야
+        #    한다. 예약이 반납되지 않으면 그 자리가 영구히 소비된 것으로 남는다.
+        guarded = self._guard is not None and self._service_key is not None
+        reserved = False
+        if guarded:
             try:
-                self._guard.before_call(self._service_key, endpoint)
+                self._guard.before_call(self._service_key, endpoint)  # type: ignore[union-attr]
             except QuotaExhausted:
                 if self._fallback is not None:
                     return self._fallback.handle_request(request)
                 raise
+            reserved = True
 
-        # ④ 하위 트랜스포트 호출(백오프 재시도). 각 물리 상위 호출(재시도 포함)이
-        #    원장에 집계되도록 endpoint 를 넘긴다.
-        response = self._call_with_retry(request, endpoint)
-
-        # ⑤ 응답 정규화로 result_code 추출(파싱 실패는 None으로 무시).
-        content = response.read()
-        content_type = response.headers.get("content-type")
-        result_code: str | None = None
-        ok: bool
         try:
-            normalized = normalize_response(content, content_type)
-            result_code = normalized.result_code
-            ok = normalized.ok
-        except Exception:  # pragma: no cover - 정규화 방어(비정형 본문)
-            ok = 200 <= response.status_code < 300
+            # ④ 하위 트랜스포트 호출(백오프 재시도). 각 물리 상위 호출(재시도 포함)이
+            #    원장에 집계되도록 endpoint 를 넘긴다.
+            response = self._call_with_retry(request, endpoint)
 
-        # after_call 기록.
-        if self._guard is not None and self._service_key is not None:
-            self._guard.after_call(
-                self._service_key,
-                endpoint,
-                result_code=result_code,
-                status="ok" if ok else "error",
-            )
+            # ⑤ 응답 정규화로 result_code 추출(파싱 실패는 None으로 무시).
+            content = response.read()
+            content_type = response.headers.get("content-type")
+            result_code: str | None = None
+            ok: bool
+            try:
+                normalized = normalize_response(content, content_type)
+                result_code = normalized.result_code
+                ok = normalized.ok
+            except Exception:  # pragma: no cover - 정규화 방어(비정형 본문)
+                ok = 200 <= response.status_code < 300
+
+            # after_call 기록(+ 예약 반납). after_call 은 자체 finally 로 반납을
+            # 보장하므로, 이중 반납을 막기 위해 호출 **전에** 소유권을 넘긴다.
+            if guarded:
+                reserved = False
+                self._guard.after_call(  # type: ignore[union-attr]
+                    self._service_key,
+                    endpoint,
+                    result_code=result_code,
+                    status="ok" if ok else "error",
+                )
+        finally:
+            if reserved:
+                self._guard.release()  # type: ignore[union-attr]
 
         # ⑥ result_code 22 → graceful stop(재시도 금지).
         if result_code == _QUOTA_ERROR_CODE:
             if self._fallback is not None:
                 return self._fallback.handle_request(request)
-            if self._guard is not None and self._service_key is not None:
-                # 방금 after_call이 키를 소진 마킹했으므로 before_call이 일관된
-                # QuotaExhausted를 던진다.
-                self._guard.before_call(self._service_key, endpoint)
+            if guarded:
+                # 방금 after_call이 키를 소진 마킹했으므로 일관된 QuotaExhausted를
+                # 만든다. before_call 이 아니라 raise_if_exhausted 를 쓰는 이유:
+                # 여기서 예약을 새로 선점하면 반납할 곳이 없다.
+                self._guard.raise_if_exhausted(self._service_key, endpoint)  # type: ignore[union-attr]
             raise QuotaExhausted(0, 0)
 
         # ⑦ 정상 응답 캐시 저장(GET 한정).
@@ -152,12 +174,22 @@ class MCPortalTransport(httpx.BaseTransport):
         return response
 
     def close(self) -> None:
-        """하위·fallback 트랜스포트를 닫는다(record 모드면 카세트 저장이 연쇄된다)."""
+        """하위·fallback 트랜스포트를 닫고, 소유한 가드의 원장 커넥션도 닫는다.
+
+        ``owns_guard=True`` 로 만들어진 가드(= :func:`_build_transport` 가 직접
+        조립한 것)만 닫는다. 호출자가 넘겨 준 가드는 그 소유가 아니므로 건드리지
+        않는다. 이 연쇄가 없으면 ``client.close()`` 만으로는 SQLite 원장 커넥션이
+        회수되지 않아 Windows 에서 임시 디렉터리 정리가 실패한다.
+        """
         try:
             self._inner.close()
         finally:
-            if self._fallback is not None:
-                self._fallback.close()
+            try:
+                if self._fallback is not None:
+                    self._fallback.close()
+            finally:
+                if self._owns_guard and self._guard is not None:
+                    self._guard.close()
 
     # -- 내부 헬퍼 --------------------------------------------------------
     def _inject_key(self, request: httpx.Request) -> None:
@@ -232,22 +264,131 @@ class MCPortalTransport(httpx.BaseTransport):
         )
 
 
+def _resolve_budget(budget: int | None, profile: ProviderProfile) -> int | None:
+    """일일 예산 한도를 해석한다(F9).
+
+    우선순위: 명시 인자 > 환경변수 ``CALL_BUDGET`` > ``profile.default_daily_budget``.
+    환경변수가 설정돼 있으면 None을 돌려주어 :class:`DailyBudget` 이 직접
+    해석하게 둔다(환경변수 파싱·오류 메시지를 한곳에 유지하기 위함).
+
+    Args:
+        budget: 호출자가 명시한 일일 상한(없으면 None).
+        profile: 폴백 기본 예산을 제공하는 프로바이더 프로파일.
+
+    Returns:
+        DailyBudget 에 넘길 한도. None이면 DailyBudget 이 환경변수를 해석한다.
+    """
+    if budget is not None:
+        return int(budget)
+    raw = os.environ.get(_ENV_CALL_BUDGET)
+    if raw is not None and raw.strip() != "":
+        return None
+    return profile.default_daily_budget
+
+
 def _build_guard(
     budget: int | None,
     ledger_path: PathLike | None,
-) -> QuotaGuard | None:
-    """budget/ledger_path로 QuotaGuard를 조립한다.
+    profile: ProviderProfile = DATA_GO_KR,
+) -> QuotaGuard:
+    """budget/ledger_path/profile로 QuotaGuard를 조립한다(항상 배선된다).
 
-    budget·ledger_path 가 모두 None이면 가드를 배선하지 않는다. budget 이
-    명시되면 ledger_path 가 없어도 기본 원장 경로(UsageLedger 기본값,
-    ~/.mcportal/ledger.db)로 가드를 배선한다 — CALL_BUDGET 하드캡이 기본 사용
-    경로에서 조용히 무력화되는 것을 막기 위함이다.
+    W1까지는 budget·ledger_path가 모두 None이면 가드를 배선하지 않았다. 그러면
+    인자를 생략한 기본 경로에서 하드 예산 상한이 조용히 사라지는데, 이는 "신뢰의
+    축은 CALL_BUDGET 하드 가드"라는 README 선언과 어긋난다. F9로 프로파일 기본
+    예산(``profile.default_daily_budget``)을 폴백에 배선하면서 무가드 조합을
+    없앤다. 가드 없는 트랜스포트가 필요하면 ``MCPortalTransport(guard=None)`` 을
+    직접 만든다.
+
+    Args:
+        budget: 명시 일일 상한(None이면 환경변수→프로파일 순으로 폴백).
+        ledger_path: 사용량 원장 경로(None이면 UsageLedger 기본 경로).
+        profile: 폴백 기본 예산을 제공하는 프로바이더 프로파일.
+
+    Returns:
+        조립된 :class:`QuotaGuard`.
     """
-    if budget is None and ledger_path is None:
-        return None
     ledger = UsageLedger(ledger_path)
-    daily = DailyBudget(budget)
+    daily = DailyBudget(_resolve_budget(budget, profile))
     return QuotaGuard(ledger, daily)
+
+
+def _build_transport(
+    service_key: str | None = None,
+    *,
+    budget: int | None = None,
+    profile: ProviderProfile = DATA_GO_KR,
+    cache_ttl: float = 300.0,
+    ledger_path: PathLike | None = None,
+    mode: str = "live",
+    cassette_path: PathLike | None = None,
+) -> httpx.BaseTransport:
+    """모드별 sync 트랜스포트를 조립한다(create_client·mcp 브리지 공용 내부 헬퍼).
+
+    :func:`create_client` 와 :func:`mcportal.mcp.build_async_client` 가 같은
+    조립 규칙을 쓰도록 한곳에 모아 둔 내부 함수다. 공개 API가 아니다.
+
+    Args:
+        service_key: data.go.kr 인증키(replay 모드는 None 허용).
+        budget: 일일 예산 상한(None이면 F9 폴백 규칙).
+        profile: 프로바이더 프로파일.
+        cache_ttl: live 캐시 TTL(초).
+        ledger_path: 사용량 원장 경로.
+        mode: "live" | "record" | "replay".
+        cassette_path: record/replay 카세트 경로.
+
+    Returns:
+        배선된 sync 트랜스포트.
+
+    Raises:
+        ValueError: 모드별 필수 인자가 없거나 알 수 없는 mode일 때.
+    """
+    if mode == "replay":
+        if cassette_path is None:
+            raise ValueError("replay 모드에는 cassette_path가 필요합니다.")
+        return ReplayTransport(Cassette.load(cassette_path))
+
+    if mode == "record":
+        if service_key is None:
+            raise ValueError("record 모드에는 service_key가 필요합니다.")
+        if cassette_path is None:
+            raise ValueError("record 모드에는 cassette_path가 필요합니다.")
+        # 정본 시크릿은 실제 전송에 쓰이는 '준비된(디코딩)' 키다. 이 형태의
+        # 스크러빙 변형(quote/quote_plus)이 인코딩키 형태까지 함께 덮으므로,
+        # 원문 입력과 준비된 키를 모두 시크릿으로 넘겨 누출을 이중 차단한다.
+        prepared = prepare_service_key(service_key)
+        secrets = [s for s in dict.fromkeys([service_key, prepared]) if s]
+        # F10: 인증키 파라미터 이름을 프로파일에서 유도해 녹화 계층에 전파한다.
+        key_params = key_params_of(profile)
+        recording = RecordingTransport(
+            httpx.HTTPTransport(),
+            Cassette(key_params=key_params),
+            secrets=secrets,
+            save_path=cassette_path,
+            key_params=key_params,
+        )
+        return MCPortalTransport(
+            service_key,
+            inner=recording,
+            guard=_build_guard(budget, ledger_path, profile),
+            cache=None,
+            profile=profile,
+            owns_guard=True,
+        )
+
+    if mode == "live":
+        if service_key is None:
+            raise ValueError("live 모드에는 service_key가 필요합니다.")
+        return MCPortalTransport(
+            service_key,
+            inner=httpx.HTTPTransport(),
+            guard=_build_guard(budget, ledger_path, profile),
+            cache=TTLCache(ttl=cache_ttl),
+            profile=profile,
+            owns_guard=True,
+        )
+
+    raise ValueError(f"알 수 없는 mode입니다: {mode!r} (live/record/replay 중 하나)")
 
 
 def create_client(
@@ -266,59 +407,31 @@ def create_client(
       캐시는 끄고(모든 호출을 카세트에 남기기 위해) 클라이언트 close 시 카세트 저장.
     - ``"replay"``: ReplayTransport 직결(가드·캐시 불요). service_key=None 허용.
 
+    쿼터가드는 **항상 배선된다**(F9). budget 을 생략해도 CALL_BUDGET 환경변수,
+    그것도 없으면 프로파일 기본 예산이 하드 상한이 된다. 가드 없는 트랜스포트가
+    필요하면 :class:`MCPortalTransport` 를 ``guard=None`` 으로 직접 만든다.
+
     Args:
         service_key: data.go.kr 인증키(replay 모드는 None 허용).
-        budget: 일일 예산 상한(None이면 CALL_BUDGET/기본 10,000). budget 을 명시하면
-            ledger_path 가 없어도 기본 원장 경로로 하드가드가 배선된다.
-        profile: 프로바이더 프로파일.
+        budget: 일일 예산 상한. 해석 우선순위는 **명시 인자 > 환경변수
+            CALL_BUDGET > profile.default_daily_budget** 이다. ledger_path 가
+            없어도 기본 원장 경로(~/.mcportal/ledger.db)로 하드가드가 배선된다.
+        profile: 프로바이더 프로파일(키 파라미터 이름·기본 예산 제공).
         cache_ttl: live 캐시 TTL(초).
-        ledger_path: 사용량 원장 경로(budget·ledger_path 가 모두 None일 때만 가드 미배선).
+        ledger_path: 사용량 원장 경로(None이면 UsageLedger 기본 경로).
         mode: "live" | "record" | "replay".
         cassette_path: record/replay 카세트 경로.
+
+    Raises:
+        ValueError: 모드별 필수 인자가 없거나 알 수 없는 mode일 때.
     """
-    if mode == "replay":
-        if cassette_path is None:
-            raise ValueError("replay 모드에는 cassette_path가 필요합니다.")
-        transport: httpx.BaseTransport = ReplayTransport(Cassette.load(cassette_path))
-        return httpx.Client(transport=transport)
-
-    if mode == "record":
-        if service_key is None:
-            raise ValueError("record 모드에는 service_key가 필요합니다.")
-        if cassette_path is None:
-            raise ValueError("record 모드에는 cassette_path가 필요합니다.")
-        # 정본 시크릿은 실제 전송에 쓰이는 '준비된(디코딩)' 키다. 이 형태의
-        # 스크러빙 변형(quote/quote_plus)이 인코딩키 형태까지 함께 덮으므로,
-        # 원문 입력과 준비된 키를 모두 시크릿으로 넘겨 누출을 이중 차단한다.
-        prepared = prepare_service_key(service_key)
-        secrets = [s for s in dict.fromkeys([service_key, prepared]) if s]
-        recording = RecordingTransport(
-            httpx.HTTPTransport(),
-            Cassette(),
-            secrets=secrets,
-            save_path=cassette_path,
-        )
-        guard = _build_guard(budget, ledger_path)
-        mc = MCPortalTransport(
-            service_key,
-            inner=recording,
-            guard=guard,
-            cache=None,
-            profile=profile,
-        )
-        return httpx.Client(transport=mc)
-
-    if mode == "live":
-        if service_key is None:
-            raise ValueError("live 모드에는 service_key가 필요합니다.")
-        guard = _build_guard(budget, ledger_path)
-        mc = MCPortalTransport(
-            service_key,
-            inner=httpx.HTTPTransport(),
-            guard=guard,
-            cache=TTLCache(ttl=cache_ttl),
-            profile=profile,
-        )
-        return httpx.Client(transport=mc)
-
-    raise ValueError(f"알 수 없는 mode입니다: {mode!r} (live/record/replay 중 하나)")
+    transport = _build_transport(
+        service_key,
+        budget=budget,
+        profile=profile,
+        cache_ttl=cache_ttl,
+        ledger_path=ledger_path,
+        mode=mode,
+        cassette_path=cassette_path,
+    )
+    return httpx.Client(transport=transport)

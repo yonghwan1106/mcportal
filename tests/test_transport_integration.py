@@ -2,12 +2,16 @@
 # Copyright 2026 Yong Park
 """transport 통합 테스트: 이중 인코딩 방지·예산 하드가드·EUC-KR·쿼터22·record/replay·캐시·백오프.
 
+F9(가드 상시 배선·예산 해석 우선순위)와 F10(프로파일 인증키 이름 전파)의 회귀
+케이스도 함께 담는다.
+
 respx로 하위 HTTPTransport 호출만 가로채며, 실제 네트워크 호출은 없다. 픽스처는
 전부 합성 데이터다.
 """
 from __future__ import annotations
 
 import gzip
+import json
 from pathlib import Path
 from urllib.parse import quote, quote_plus
 
@@ -18,6 +22,7 @@ import respx
 from mcportal import (
     Cassette,
     MCPortalTransport,
+    ProviderProfile,
     QuotaExhausted,
     TTLCache,
     create_client,
@@ -328,3 +333,149 @@ def test_retry_records_each_physical_call_in_ledger(tmp_path: Path) -> None:
     # DECODED_KEY 는 %XX 시퀀스가 없어 prepare_service_key 가 그대로 두므로 지문 일치.
     assert ledger.count_today(DECODED_KEY) == 3
     ledger.close()
+
+
+# ---------------------------------------------------------------------------
+# ⑩ F9: 인자를 생략해도 프로파일 기본 예산으로 하드가드가 배선된다
+# ---------------------------------------------------------------------------
+#: 예산 폴백을 몇 번의 호출로 관측하기 위한 소량 예산 커스텀 프로파일(합성).
+SMALL_BUDGET_PROFILE = ProviderProfile(
+    name="가상포털",
+    key_param="serviceKey",
+    host_suffixes=("apis.data.go.kr",),
+    default_daily_budget=2,
+    multi_key_supported=False,
+    guidance_exhausted="",
+    refusal_multikey="",
+)
+
+
+@respx.mock
+def test_f9_profile_default_budget_is_wired_without_arguments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    respx.get(BASE).mock(return_value=httpx.Response(200, json={"ok": True}))
+    # 환경변수가 설정된 셸에서 돌면 환경변수가 이기므로 반드시 제거한다.
+    monkeypatch.delenv("CALL_BUDGET", raising=False)
+    # ledger_path 를 생략해도 배선되는지 보되, 홈 디렉터리를 건드리지 않도록
+    # UsageLedger 기본 경로만 임시 경로로 바꿔 둔다.
+    monkeypatch.setattr(
+        "mcportal.quota.ledger._DEFAULT_PATH", tmp_path / "home_ledger.db"
+    )
+
+    # budget=None, ledger_path=None — W1에서는 이 조합이 '무가드'였다.
+    client = create_client(
+        service_key=DECODED_KEY, mode="live", profile=SMALL_BUDGET_PROFILE
+    )
+    with client:
+        for page in ("1", "2"):
+            assert client.get(BASE, params={"pageNo": page}).status_code == 200
+        with pytest.raises(QuotaExhausted) as excinfo:
+            client.get(BASE, params={"pageNo": "3"})
+    assert "운영계정" in str(excinfo.value)
+
+
+@respx.mock
+def test_f9_env_call_budget_wins_over_profile_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    respx.get(BASE).mock(return_value=httpx.Response(200, json={"ok": True}))
+    # 우선순위: 명시 인자 > CALL_BUDGET > profile.default_daily_budget(=2).
+    monkeypatch.setenv("CALL_BUDGET", "1")
+
+    client = create_client(
+        service_key=DECODED_KEY,
+        mode="live",
+        ledger_path=tmp_path / "env.db",
+        profile=SMALL_BUDGET_PROFILE,
+    )
+    with client:
+        assert client.get(BASE, params={"pageNo": "1"}).status_code == 200
+        # 프로파일 기본값 2가 아니라 환경변수 1이 상한이므로 2번째에서 막힌다.
+        with pytest.raises(QuotaExhausted):
+            client.get(BASE, params={"pageNo": "2"})
+
+
+@respx.mock
+def test_f9_explicit_budget_wins_over_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    respx.get(BASE).mock(return_value=httpx.Response(200, json={"ok": True}))
+    monkeypatch.setenv("CALL_BUDGET", "1")
+
+    client = create_client(
+        service_key=DECODED_KEY,
+        budget=3,
+        mode="live",
+        ledger_path=tmp_path / "explicit.db",
+        profile=SMALL_BUDGET_PROFILE,
+    )
+    with client:
+        # 명시 인자 3이 환경변수 1을 이긴다.
+        for page in ("1", "2", "3"):
+            assert client.get(BASE, params={"pageNo": page}).status_code == 200
+        with pytest.raises(QuotaExhausted):
+            client.get(BASE, params={"pageNo": "4"})
+
+
+# ---------------------------------------------------------------------------
+# ⑪ F10: record 시 프로파일의 인증키 파라미터 이름이 카세트에 전파된다
+# ---------------------------------------------------------------------------
+CUSTOM_KEY_PROFILE = ProviderProfile(
+    name="가상포털",
+    key_param="apiKey",
+    host_suffixes=("apis.data.go.kr",),
+    default_daily_budget=100,
+    multi_key_supported=False,
+    guidance_exhausted="",
+    refusal_multikey="",
+    key_param_aliases=("api_key",),
+)
+
+
+@respx.mock
+def test_f10_profile_key_param_propagates_to_cassette(tmp_path: Path) -> None:
+    def _handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/json"},
+            json={"response": {"header": {"resultCode": "00"}}},
+        )
+
+    respx.get(BASE).mock(side_effect=_handler)
+
+    cassette_path = tmp_path / "custom_key.json"
+    rec_client = create_client(
+        service_key=DECODED_KEY,
+        budget=100,
+        ledger_path=tmp_path / "custom_key.db",
+        mode="record",
+        cassette_path=cassette_path,
+        profile=CUSTOM_KEY_PROFILE,
+    )
+    with rec_client:
+        assert rec_client.get(BASE, params={"pageNo": "1"}).status_code == 200
+
+    # 주입은 프로파일의 정본 키 이름으로 나간다.
+    sent = respx.calls.last.request
+    assert sent.url.params["apiKey"] == DECODED_KEY
+
+    data = json.loads(cassette_path.read_text(encoding="utf-8"))
+    # 카세트에 프로파일 유래 키 이름들이 기록된다(정본 + 별칭).
+    assert data["key_params"] == ["apiKey", "api_key"]
+    raw = cassette_path.read_text(encoding="utf-8")
+    for variant in (
+        DECODED_KEY,
+        quote(DECODED_KEY),
+        quote(DECODED_KEY, safe=""),
+        quote_plus(DECODED_KEY),
+    ):
+        assert variant not in raw, f"카세트에 키 변형이 남았다: {variant}"
+    assert "__SCRUBBED__" in raw
+
+    # replay 는 파일에 적힌 key_params 를 그대로 쓰므로 무키 재생이 매칭된다.
+    replay_client = create_client(mode="replay", cassette_path=cassette_path)
+    with replay_client:
+        played = replay_client.get(BASE, params={"pageNo": "1"})
+    assert played.status_code == 200
+    assert played.json() == {"response": {"header": {"resultCode": "00"}}}

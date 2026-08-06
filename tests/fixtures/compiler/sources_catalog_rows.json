@@ -1,0 +1,57 @@
+{
+  "currentCount": 5,
+  "matchCount": 5,
+  "page": 1,
+  "perPage": 10,
+  "totalCount": 5,
+  "data": [
+    {
+      "listId": "00000010",
+      "listTitle": "가상 도서관 정보 조회 서비스",
+      "orgNm": "가상행정연구원",
+      "apiType": "REST",
+      "dataFormat": "JSON+XML",
+      "endPoint": "https://apis.example.invalid/0000010/libraryService",
+      "operationNm": "도서관 목록 조회",
+      "operationUrl": "https://apis.example.invalid/0000010/libraryService/getLibraryList",
+      "swaggerJsonUrl": "https://apis.example.invalid/0000010/libraryService/swagger.json",
+      "guideUrl": "https://www.example.invalid/guide/00000010"
+    },
+    {
+      "list_id": "00000011",
+      "list_title": "가상 체육시설 정보 조회 서비스",
+      "org_nm": "가상체육진흥원",
+      "api_type": "REST",
+      "data_format": "XML",
+      "end_point_url": "https://apis.example.invalid/0000011/sportsService/",
+      "operation_nm": "체육시설 목록 조회",
+      "operation_url": "getFacilityList"
+    },
+    {
+      "listId": "00000012",
+      "listTitle": "가상 문화유산 연계 서비스",
+      "orgNm": "가상문화유산원",
+      "apiType": "LINK",
+      "dataFormat": "JSON",
+      "endPoint": "https://www.example.invalid/link/00000012",
+      "guideUrl": "https://www.example.invalid/guide/00000012"
+    },
+    {
+      "listId": "00000013",
+      "listTitle": "가상 기상관측 조회 서비스",
+      "orgNm": "가상기상연구소",
+      "apiType": "REST",
+      "dataFormat": "JSON+XML",
+      "endPoint": null,
+      "operationUrl": "getWeatherList"
+    },
+    {
+      "listId": "00000014",
+      "listTitle": "가상 교통량 조회 서비스",
+      "apiType": "REST",
+      "dataFormat": null,
+      "endPoint": "https://apis.example.invalid/0000014/trafficService",
+      "operationUrl": "https://other.example.invalid/xyz/getTrafficList"
+    }
+  ]
+}
