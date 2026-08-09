@@ -4,7 +4,17 @@
 (`dev` is a superset of `mcp`), with `--generate-hashes` so every artifact is
 verified on install. The runtime declaration in `pyproject.toml` is unchanged
 and stays `httpx` only: this lockfile is a *reproduction aid*, not a dependency.
-pip-tools itself is a one-off developer tool and is never installed at runtime.
+The lock tool (uv) is a one-off developer tool and is never installed at
+runtime.
+
+**Since 2026-08-09 the file is produced by `uv pip compile --universal`**, not
+by pip-tools. The platform-marker section below records why: a Windows-resolved
+pip-tools lock both pinned `pywin32` unconditionally (breaks ubuntu) *and*
+omitted linux-only transitive dependencies entirely (`secretstorage`,
+`jeepney` via `keyring` - second CI run failed on exactly that). Universal
+resolution keeps every environment marker in one file; pip's hash-checking
+install mode accepts it as-is (verified with a clean-venv `--dry-run` on
+Windows and by the CI ubuntu matrix).
 
 All comments in this directory are ASCII on purpose. Files under
 `requirements/` are read by pip, which decodes them with the locale codec on
@@ -15,22 +25,21 @@ Windows (cp949 here); a single non-ASCII byte makes `pip install -r` die with a
 
 Run from the repository root, with a Python 3.11 interpreter:
 
-    python -m pip install pip-tools
-    python -m piptools compile \
+    python -m pip install uv
+    python -m uv pip compile pyproject.toml \
         --extra dev --extra mcp \
-        --strip-extras \
+        --universal \
         --generate-hashes \
-        --output-file requirements/lock-py311.txt \
-        pyproject.toml
+        -o requirements/lock-py311.txt
 
-Then normalize the output to LF endings with exactly one trailing newline
-(pip-compile emits CRLF on Windows; the repo is LF via `.gitattributes`).
+`--universal` is the point of using uv here: it resolves for *all* platforms
+and writes environment markers (`; sys_platform == 'win32'` etc.) instead of
+baking in the resolving machine's answers. uv emits LF and strips extras by
+default, so no post-processing is needed.
 
-`--strip-extras` is required, not cosmetic. Without it the output contains
-`pydantic[email]==...` and pip refuses the file as a constraints file with
-`ERROR: Constraints cannot have extras`. It is also the announced future
-default of pip-tools. Nothing is lost: the extra's own dependencies
-(`email-validator`, ...) are pinned as first-class entries in the same file.
+Historical note (pip-tools, used for the first cut of this file): it resolves
+for the running platform only, which is unusable for a cross-OS CI matrix -
+see the platform-marker section below for the measured failures.
 
 ## How to install from it
 
@@ -81,11 +90,16 @@ remedies, in order of preference:
    This is not reproducible from the command above, so it needs a check that
    fails the build when the marker goes missing.
 
-**Applied: remedy 2, on 2026-08-09** (the first CI run failed on ubuntu
-exactly as predicted above). The marker is hand-attached in
-`lock-py311.txt`; the failing check is the CI matrix itself -- an ubuntu
-job cannot install an unconditional `pywin32` pin, so a regeneration that
-drops the marker turns the whole `test` job red on the next push.
+**Resolution history (2026-08-09).** The first CI run failed on ubuntu
+exactly as predicted above; remedy 2 (hand-attached marker) was applied and
+turned out to be insufficient - the second CI run then failed on the *other*
+half of the same defect: a Windows-resolved lock omits linux-only transitive
+dependencies entirely (`secretstorage`/`jeepney` via `keyring`), which pip's
+hash-checking mode rejects as unpinned. The durable fix was neither remedy
+but a resolver change: `uv pip compile --universal` (see Regenerate above),
+which emits every platform's pins with markers in one file. The failing
+check remains the CI matrix itself - a regeneration that loses markers or
+drops a platform's pins turns the ubuntu jobs red on the next push.
 
 pip-tools 7.x has no universal-resolution mode that would avoid this; that
 capability exists only in other resolvers.
