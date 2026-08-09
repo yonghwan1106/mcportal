@@ -7,6 +7,7 @@ from __future__ import annotations
 from .datago import (
     DATA_GO_KR,
     EXHAUSTED_GUIDANCE,
+    KEY_LOCATIONS,
     MULTIKEY_REFUSAL,
     MultiKeyUnsupportedError,
     ProviderProfile,
@@ -16,6 +17,7 @@ from .datago import (
 __all__ = [
     "ProviderProfile",
     "DATA_GO_KR",
+    "KEY_LOCATIONS",
     "MultiKeyUnsupportedError",
     "validate_key_registration",
     "EXHAUSTED_GUIDANCE",

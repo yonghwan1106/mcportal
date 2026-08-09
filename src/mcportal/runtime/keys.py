@@ -22,6 +22,10 @@ from typing import Any
 # ``%`` 뒤에 16진수 두 자리가 오는, 최소 한 개의 퍼센트 인코딩 시퀀스.
 _PERCENT_ENCODED = re.compile(r"%[0-9A-Fa-f]{2}")
 
+#: 인증키 파라미터·헤더의 기본 이름(data.go.kr 규약).
+#: 이름을 매개변수화하면서도 기존 호출부가 그대로 동작하도록 기본값을 상수로 둔다.
+DEFAULT_KEY_PARAM = "serviceKey"
+
 
 def prepare_service_key(key: str) -> str:
     """인증키를 HTTP 클라이언트에 넘기기 좋은 원문(디코딩키) 형태로 정규화한다.
@@ -43,13 +47,61 @@ def prepare_service_key(key: str) -> str:
     return stripped
 
 
-def inject_service_key(params: Mapping[str, Any] | None, key: str) -> dict[str, Any]:
-    """``params`` 를 복사한 새 dict 에 ``serviceKey`` 를 주입해 반환한다.
+def inject_service_key(
+    params: Mapping[str, Any] | None,
+    key: str,
+    *,
+    param_name: str = DEFAULT_KEY_PARAM,
+) -> dict[str, Any]:
+    """``params`` 를 복사한 새 dict 에 인증키를 주입해 반환한다.
 
     원본 매핑은 변경하지 않는다. 값은 :func:`prepare_service_key` 로 정규화한
     *원문*을 넣으며, 사전 인코딩하지 않는다(HTTP 클라이언트가 정확히 한 번
     인코딩하도록 남겨 둔다).
+
+    Args:
+        params: 원본 질의 파라미터 매핑(``None`` 가능).
+        key: data.go.kr 인증키(인코딩키·디코딩키 어느 쪽이든 된다).
+        param_name: 인증키 파라미터 이름. 기본값은 :data:`DEFAULT_KEY_PARAM` 이라
+            기존 호출부는 그대로 동작한다. 제공자마다 이름이 다르므로(``authKey``
+            등) 하드코딩 대신 프로파일의 ``key_param`` 을 넘길 수 있게 열어 둔다.
+
+    Returns:
+        인증키가 주입된 새 dict.
     """
     result: dict[str, Any] = dict(params) if params else {}
-    result["serviceKey"] = prepare_service_key(key)
+    result[param_name] = prepare_service_key(key)
+    return result
+
+
+def inject_service_key_header(
+    headers: Mapping[str, Any] | None,
+    key: str,
+    *,
+    header_name: str = DEFAULT_KEY_PARAM,
+) -> dict[str, Any]:
+    """``headers`` 를 복사한 새 dict 에 인증키를 **헤더로** 주입해 반환한다(F-08).
+
+    질의문자열 버전(:func:`inject_service_key`)과 값 규칙이 같다 —
+    :func:`prepare_service_key` 로 정규화한 원문을 넣는다. 다만 이유는 반대다.
+    질의문자열은 클라이언트가 뒤에서 한 번 인코딩하므로 원문을 남겨야 하고,
+    헤더는 **아무도 인코딩하지 않으므로** 원문이 그대로 나가는 것이 정답이다.
+    인코딩키를 헤더에 그대로 실으면 서버가 ``%2B`` 를 값의 일부로 읽는다.
+
+    원본 매핑은 변경하지 않는다. 이미 같은 이름의 헤더가 있으면(대소문자 무시)
+    **덮어쓰지 않는다** — 호출자가 명시적으로 실은 값이 우선이다.
+
+    Args:
+        headers: 원본 헤더 매핑(``None`` 가능).
+        key: data.go.kr 인증키.
+        header_name: 인증키 헤더 이름(기본 :data:`DEFAULT_KEY_PARAM`).
+
+    Returns:
+        인증키가 주입된 새 dict(원본 헤더 표기는 보존된다).
+    """
+    result: dict[str, Any] = dict(headers) if headers else {}
+    lowered = header_name.lower()
+    if any(str(name).lower() == lowered for name in result):
+        return result
+    result[header_name] = prepare_service_key(key)
     return result

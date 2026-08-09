@@ -1,0 +1,94 @@
+{
+  "LsTrmSearch": {
+    "lstrm": [
+      {
+        "법령용어ID": "3945293",
+        "법령용어명": "(Instrument Meterological Condition; IMC)",
+        "법령용어상세검색": "/LSW/lsTrmInfoR.do?trmSeqs=3945293&mobile=",
+        "법령용어상세링크": "/DRF/lawService.do?OC=sapphire_5&target=lstrm&trmSeqs=3945293&mobile=&type=XML",
+        "법령종류코드": "010102",
+        "사전구분코드": "011402"
+      },
+      {
+        "법령용어ID": "4043616",
+        "법령용어명": "(Terminal Operating Company)라 한다)",
+        "법령용어상세검색": "/LSW/lsTrmInfoR.do?trmSeqs=4043616&mobile=",
+        "법령용어상세링크": "/DRF/lawService.do?OC=sapphire_5&target=lstrm&trmSeqs=4043616&mobile=&type=XML",
+        "법령종류코드": "010102",
+        "사전구분코드": "011402"
+      },
+      {
+        "법령용어ID": "5041083",
+        "법령용어명": "(이하",
+        "법령용어상세검색": "/LSW/lsTrmInfoR.do?trmSeqs=5041083&mobile=",
+        "법령용어상세링크": "/DRF/lawService.do?OC=sapphire_5&target=lstrm&trmSeqs=5041083&mobile=&type=XML",
+        "법령종류코드": "010102",
+        "사전구분코드": "011402"
+      },
+      {
+        "법령용어ID": "3833856",
+        "법령용어명": "(지리적)위치(Position(geographical))",
+        "법령용어상세검색": "/LSW/lsTrmInfoR.do?trmSeqs=3833856&mobile=",
+        "법령용어상세링크": "/DRF/lawService.do?OC=sapphire_5&target=lstrm&trmSeqs=3833856&mobile=&type=XML",
+        "법령종류코드": "010102",
+        "사전구분코드": "011402"
+      },
+      {
+        "법령용어ID": "5210847",
+        "법령용어명": "0 정지방식 비상정지장치",
+        "법령용어상세검색": "/LSW/lsTrmInfoR.do?trmSeqs=5210847&mobile=",
+        "법령용어상세링크": "/DRF/lawService.do?OC=sapphire_5&target=lstrm&trmSeqs=5210847&mobile=&type=XML",
+        "법령종류코드": "010102",
+        "사전구분코드": "011402"
+      },
+      {
+        "법령용어ID": "3503681,1059941,808913",
+        "법령용어명": "0 정지방식(stop category 0) 비상정지장치",
+        "법령용어상세검색": "/LSW/lsTrmInfoR.do?trmSeqs=3503681,1059941,808913&mobile=",
+        "법령용어상세링크": "/DRF/lawService.do?OC=sapphire_5&target=lstrm&trmSeqs=3503681,1059941,808913&mobile=&type=XML",
+        "법령종류코드": "010102",
+        "사전구분코드": "011402"
+      },
+      {
+        "법령용어ID": "4350393",
+        "법령용어명": "080착신과금사업자",
+        "법령용어상세검색": "/LSW/lsTrmInfoR.do?trmSeqs=4350393&mobile=",
+        "법령용어상세링크": "/DRF/lawService.do?OC=sapphire_5&target=lstrm&trmSeqs=4350393&mobile=&type=XML",
+        "법령종류코드": "010102",
+        "사전구분코드": "011402"
+      },
+      {
+        "법령용어ID": "4350383",
+        "법령용어명": "080착신과금서비스",
+        "법령용어상세검색": "/LSW/lsTrmInfoR.do?trmSeqs=4350383&mobile=",
+        "법령용어상세링크": "/DRF/lawService.do?OC=sapphire_5&target=lstrm&trmSeqs=4350383&mobile=&type=XML",
+        "법령종류코드": "010102",
+        "사전구분코드": "011402"
+      },
+      {
+        "법령용어ID": "5471418",
+        "법령용어명": "1 이산화탄소상당량톤",
+        "법령용어상세검색": "/LSW/lsTrmInfoR.do?trmSeqs=5471418&mobile=",
+        "법령용어상세링크": "/DRF/lawService.do?OC=sapphire_5&target=lstrm&trmSeqs=5471418&mobile=&type=XML",
+        "법령종류코드": "010101",
+        "사전구분코드": "011402"
+      },
+      {
+        "법령용어ID": "5003535",
+        "법령용어명": "1/3 옥타브대역",
+        "법령용어상세검색": "/LSW/lsTrmInfoR.do?trmSeqs=5003535&mobile=",
+        "법령용어상세링크": "/DRF/lawService.do?OC=sapphire_5&target=lstrm&trmSeqs=5003535&mobile=&type=XML",
+        "법령종류코드": "010102",
+        "사전구분코드": "011402"
+      }
+    ],
+    "numOfRows": "10",
+    "page": "1",
+    "resultCode": "00",
+    "resultMsg": "success",
+    "section": "tn_lstrm_list",
+    "target": "lstrm",
+    "totalCnt": "73161",
+    "키워드": "*"
+  }
+}

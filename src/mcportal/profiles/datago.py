@@ -22,6 +22,16 @@ EXHAUSTED_GUIDANCE = (
     "→ 활용신청 목록 → 운영계정 신청"
 )
 
+#: 인증키를 실을 수 있는 위치(F-08). ``"query"`` 는 질의문자열, ``"header"`` 는
+#: 요청 헤더다. **이 목록이 정본**이며 :class:`~mcportal.compiler.sources.SourceSpec`
+#: 도 같은 값을 본다 — 프로파일과 IR 이 서로 다른 어휘를 쓰면 트랜스포트가 어느
+#: 쪽을 따를지가 코드마다 갈린다.
+#:
+#: 자동 승격은 하지 않는다. 스펙 문서의 ``securityDefinitions`` 를 읽어 헤더로
+#: 바꾸는 경로는 만들지 않으며(불변식 I3 의 취지), 값은 프리셋 ``source.json`` 이나
+#: 프로파일이 **명시**할 때만 바뀐다.
+KEY_LOCATIONS: tuple[str, ...] = ("query", "header")
+
 #: 동일 API에 대한 복수 키 로테이션 요청을 거부할 때의 안내 문구.
 MULTIKEY_REFUSAL = (
     "data.go.kr는 1인 1키 구조이므로 동일 API에 대한 복수 키 로테이션은 타인 "
@@ -37,10 +47,15 @@ class ProviderProfile:
     """공공데이터 제공자별 정책을 담은 불변 값 객체.
 
     Attributes:
-        key_param: 인증키 파라미터의 정본 이름(요청 주입에 쓰인다).
+        key_param: 인증키 파라미터의 정본 이름(요청 주입에 쓰인다). ``key_location``
+            이 ``"header"`` 면 **헤더 이름**으로 쓰인다.
         key_param_aliases: 같은 제공자가 병용하는 인증키 파라미터의 별칭들.
             스크러빙·카세트 매칭에서 정본과 동등하게 취급된다. 기본값이 빈
             튜플이므로 기존 생성자 호출은 전부 그대로 호환된다(F10).
+        key_location: 인증키를 싣는 위치(:data:`KEY_LOCATIONS` 중 하나, 기본
+            ``"query"``). data.go.kr 은 질의문자열이 정본이지만, 같은 엔진으로
+            헤더 인증 제공자를 흡수할 수 있게 열어 둔 축이다(F-08). 기본값이
+            ``"query"`` 이므로 기존 프로파일 정의는 전부 그대로 호환된다.
     """
 
     name: str
@@ -51,6 +66,23 @@ class ProviderProfile:
     guidance_exhausted: str
     refusal_multikey: str
     key_param_aliases: tuple[str, ...] = ()
+    key_location: str = "query"
+
+    def __post_init__(self) -> None:
+        """``key_location`` 이 허용값인지 생성 시점에 확인한다(F-08).
+
+        오타(``"headers"`` · ``"Header"``)를 조용히 질의문자열로 접으면 헤더 인증
+        제공자에 키가 실리지 않은 요청이 나가고, 실패 원인이 인증키 위치라는 사실이
+        어디에도 드러나지 않는다. 생성 시점에 막는다.
+
+        Raises:
+            ValueError: 허용되지 않은 위치를 지정했을 때(허용값 목록을 함께 알린다).
+        """
+        if self.key_location not in KEY_LOCATIONS:
+            raise ValueError(
+                f"프로파일 {self.name!r} 의 key_location 이 올바르지 않습니다: "
+                f"{self.key_location!r}. 허용값: {', '.join(KEY_LOCATIONS)}."
+            )
 
 
 #: data.go.kr 정본 프로파일.

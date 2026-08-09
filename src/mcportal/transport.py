@@ -5,7 +5,11 @@
 :class:`MCPortalTransport` 는 ``httpx.BaseTransport`` 구현으로, 하위 트랜스포트
 호출 전후에 다음을 강제한다.
 
-1. serviceKey 원문 주입(httpx가 정확히 1회 인코딩하도록 남겨 이중 인코딩(코드 30) 방지).
+1. 인증키 원문 주입. 위치는 ``profile.key_location`` 이 정한다(F-08) — ``"query"``
+   (기본)면 질의문자열에 원문을 남겨 httpx가 정확히 1회 인코딩하게 하고(이중
+   인코딩(코드 30) 방지), ``"header"`` 면 ``profile.key_param`` 이름의 요청 헤더에
+   싣는다. 카세트는 요청 **헤더를 기록하지 않으므로** 헤더 경로의 키는 녹화 파일로
+   새지 않는다(:mod:`mcportal.replay.cassette`).
 2. TTL 캐시 조회(GET 한정): 히트 시 ``X-MCPortal-Cache: hit`` 헤더를 달아 즉시 반환.
 3. 쿼터가드 before_call: 하드 예산 초과·소진 마킹 키를 차단(QuotaExhausted).
    fallback 트랜스포트(예: replay 카세트)가 있으면 위임한다.
@@ -193,10 +197,32 @@ class MCPortalTransport(httpx.BaseTransport):
 
     # -- 내부 헬퍼 --------------------------------------------------------
     def _inject_key(self, request: httpx.Request) -> None:
-        """요청 쿼리에 serviceKey 원문을 주입한다(이미 있으면 중복 주입하지 않음)."""
+        """인증키 원문을 프로파일이 지정한 위치에 주입한다(F-08).
+
+        ``profile.key_location`` 이 ``"query"``(기본)면 질의문자열에,
+        ``"header"`` 면 ``profile.key_param`` 이름의 **요청 헤더**에 싣는다. 어느
+        쪽이든 이미 값이 있으면 중복 주입하지 않는다 — 호출자가 명시적으로 실은
+        값을 덮어쓰면 그쪽 의도가 조용히 사라진다.
+
+        질의문자열 경로가 원문(디코딩키)을 넣는 이유는 httpx 가 정확히 1회
+        인코딩하게 남기기 위해서다(코드 30 이중 인코딩 방지). **헤더 경로는
+        httpx 가 인코딩하지 않으므로 원문이 그대로 나간다** — 이것이 헤더 인증의
+        정상 동작이다.
+
+        헤더 값의 접두 형식(``Bearer <키>`` · ``Infuser <키>`` 등)은 다루지 않는다.
+        필요해지면 프로파일에 ``key_header_format`` 을 더해 그 자리에서 포맷하는
+        것이 확장 지점이며, 지금은 **원문(raw)** 만 싣는다. 실제 제공자를 확보하기
+        전에 포맷 축을 열면 검증할 수 없는 분기가 하나 늘어날 뿐이다.
+        """
         if self._service_key is None:
             return
         key_param = self._profile.key_param
+        if str(getattr(self._profile, "key_location", "query")) == "header":
+            # httpx.Headers 의 포함 검사는 대소문자를 무시한다(HTTP 규약).
+            if key_param in request.headers:
+                return
+            request.headers[key_param] = self._service_key
+            return
         if key_param in request.url.params:
             return
         request.url = request.url.copy_merge_params({key_param: self._service_key})

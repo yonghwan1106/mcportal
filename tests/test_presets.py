@@ -3,12 +3,14 @@
 """프리셋 번들 3종(4데이터셋) 검증: 결정론 · 시크릿 게이트 · 어댑터 회귀.
 
 여기서만 **실제 커밋된 프리셋 번들**을 읽는다(엔진 자체의 단위 검증은
-``tests/test_curation.py`` 가 합성 픽스처로 한다). 번들에 담긴 것은 공공 API 의
-**스펙 메타데이터**이며 실응답 데이터·실인증키는 0건이다 —
+``tests/test_curation.py`` 가 합성 픽스처로 한다). 번들에는 공공 API 의 **스펙
+메타데이터**와, 2026-08-09 실키 샘플링으로 받은 **실응답 데이터**(``samples/`` ·
+``cassettes/``)가 함께 들어 있다. 실인증키는 0건이며 — 카세트의 키 자리는
+``__SCRUBBED__`` 자리표시자로 치환돼 있고 그 사실을 아래 테스트가 강제한다 —
 ``presets/NOTICE-DATA.md`` 가 출처와 근거의 정본이다.
 
-이 테스트는 네트워크를 쓰지 않는다. 프리셋 취득도 인증키 없이 끝났고, 검증도
-디스크에 있는 파일만 읽는다.
+이 테스트는 네트워크를 쓰지 않는다. 샘플링은 이미 끝난 일이고, 검증은 디스크에
+있는 파일만 읽는다.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -258,21 +261,53 @@ def test_f04_gateway_required_params_carry_examples() -> None:
     assert all("example" not in param for param in declared)
 
 
-def test_f06_gateway_response_schema_is_unresolved() -> None:
-    """게이트웨이 2종의 응답 스키마는 미확정으로 강등돼 있고 근거가 남아 있다."""
+def test_f06_gateway_response_schema_is_sampled_not_declared() -> None:
+    """게이트웨이 2종은 선언 스키마를 버리고 **실측 추론 스키마**를 싣는다.
+
+    이력(정찰 F-06): 두 게이트웨이 스펙의 200 응답 선언은 실제 XML 과 어긋난다고
+    보고 큐레이션이 ``response.unresolved`` 로 강등했었다. 근거는 ① 루트 래퍼가
+    한 겹 얕고 ② 반복 항목의 배열성이 표기돼 있지 않다는 두 가지였다.
+    **2026-08-09 실키 샘플 1건씩으로 둘 다 사실로 확인됐다** — 실제 정규화 결과는
+    루트 ``response`` 아래 ``header``·``body`` 가 들어가 한 겹 깊고,
+    ``body.items.item`` 은 배열이다.
+
+    그래서 강등 지시(``unresolved``)는 **유지한다.** 소스 선언을 믿지 않겠다는
+    판단이 실측으로 강화됐기 때문이다. 대신 산출물에 실리는 것은 선언 스키마가
+    아니라 ``sampled_schemas.json`` 의 실측 추론 스키마이고, 그 결과 남은 미확정
+    개수는 0 이 된다. 이 테스트는 그 두 가지를 함께 못박는다 — 강등 지시가 살아
+    있을 것, 그리고 미확정이 추론으로 실제로 메워졌을 것.
+    """
     for preset_id in ("15101612", "15102108"):
         meta = _document(preset_id)["info"]["x-mcportal"]
-        assert meta["schema_inference"]["unresolved"] >= 1
+        # 실측으로 메워졌다: 미확정 0 · 샘플에서 생성됨.
+        assert meta["schema_inference"].get("unresolved", 0) == 0
+        assert meta["generation_mode"] == "sampled"
+        assert meta["sample_count"] == 1
 
+        # 강등 지시와 근거는 그대로 살아 있다(선언을 믿지 않는다는 판단).
         curation = read_curation(PRESETS_ROOT / preset_id / "curation.json")
         (operation,) = curation.operations.values()
         assert operation.response is not None
         assert operation.response.unresolved is True
         assert len(operation.response.reason) > 30
 
+        # 큐레이션 적용 소스 기준으로는 여전히 '미확정' 이다 — 추론이 그 자리를
+        # 메웠을 뿐, 선언이 신뢰를 되찾은 것이 아니다.
         source = load_preset(PRESETS_ROOT / preset_id)
-        assert unresolved_schema_operations(source) == (
-            next(iter(_operations(_document(preset_id)))),
+        (operation_id,) = _operations(_document(preset_id))
+        assert unresolved_schema_operations(source) == (operation_id,)
+
+        # 추론 스키마가 실제로 F-06 이 예측한 모양이다.
+        sampled = json.loads(
+            (PRESETS_ROOT / preset_id / "sampled_schemas.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        schema = sampled["operations"][operation_id]["response_schema"]
+        root = schema["properties"]["response"]["properties"]
+        assert set(root) == {"header", "body"}
+        assert root["body"]["properties"]["items"]["properties"]["item"]["type"] == (
+            "array"
         )
 
 
@@ -426,14 +461,35 @@ def test_preset_info_matches_document(preset_id: str) -> None:
 # 14. 문서
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("preset_id", PRESET_IDS)
-def test_preset_readme_states_unresolved_count_and_v02(preset_id: str) -> None:
-    """번들 README 가 v0.2 고지와 미확정 개수를 숫자로 적고 있다."""
+def test_preset_readme_states_unresolved_count_and_sampling_outcome(
+    preset_id: str,
+) -> None:
+    """번들 README 가 미확정 개수와 **샘플링 결과**를 숫자·날짜로 적고 있다.
+
+    W3 까지 이 테스트는 "v0.2 에서 채워진다"는 미래형 고지를 강제했다. v0.2.0 이
+    실제로 그 일을 했으므로 강제 대상을 **과거형 실측 문면**으로 바꾼다. 검사
+    강도는 낮추지 않는다 — 여전히 미확정 개수를 숫자로 적을 것을 요구하고, 거기에
+    더해 샘플링한 번들은 측정일을 적도록 요구한다. 측정일 없는 "확정했다"는
+    출처 없는 주장이기 때문이다.
+
+    ``15081808`` 은 개인정보 축(요청 본문의 사업자등록번호) 때문에 샘플링에서
+    의도적으로 뺐다. 그래서 이 번들에는 측정일 대신 **제외 사실**을 적도록
+    요구한다 — 빠진 이유를 적지 않으면 "미확정 0" 이 실측처럼 읽힌다.
+    """
     text = (PRESETS_ROOT / preset_id / "README.md").read_text(encoding="utf-8")
     info = preset_info(PRESETS_ROOT / preset_id)
-    assert "v0.2" in text
     assert f"**{info.unresolved_count} / {info.operation_count}**" in text
     assert "무인증" in text
     assert "mcportal compile" in text
+
+    sampled = (PRESETS_ROOT / preset_id / "sampled_schemas.json").exists()
+    if sampled:
+        assert "2026-08-09" in text, "샘플링한 번들인데 측정일이 없다"
+        assert "sampled_schemas.json" in text
+        assert "v0.2.0" in text
+    else:
+        assert "샘플링" in text, "샘플링하지 않았다는 사실이 적혀 있어야 한다"
+        assert "제외" in text or "뺐다" in text
 
 
 def test_presets_root_documents_exist() -> None:
@@ -449,3 +505,141 @@ def test_presets_root_documents_exist() -> None:
     # "최초" 표현 금지 규칙 회귀.
     assert "최초" not in readme
     assert "최초" not in notice
+
+
+# ---------------------------------------------------------------------------
+# 15. 실키 샘플링 산출물 (2026-08-09)
+# ---------------------------------------------------------------------------
+#: 샘플링을 실제로 수행한 번들. ``15081808`` 은 요청 본문에 사업자등록번호가
+#: 실리는 개인정보 축이라 의도적으로 제외했다.
+SAMPLED_PRESET_IDS: tuple[str, ...] = ("15000115", "15101612", "15102108")
+
+#: 카세트의 인증키 자리에 들어가야 하는 자리표시자.
+SCRUB_PLACEHOLDER_TEXT = "__SCRUBBED__"
+
+
+def _sampling_artifacts(preset_id: str) -> tuple[Path, ...]:
+    """한 번들의 샘플링 산출물 경로 전부(추론 결과 · 샘플 · 카세트)."""
+    directory = PRESETS_ROOT / preset_id
+    return (
+        directory / "sampled_schemas.json",
+        *sorted((directory / "samples").glob("*.json")),
+        *sorted((directory / "cassettes").glob("*.json")),
+    )
+
+
+@pytest.mark.parametrize("preset_id", SAMPLED_PRESET_IDS)
+def test_sampling_artifacts_follow_file_conventions(preset_id: str) -> None:
+    """샘플링 산출물도 커밋 파일 규약(UTF-8 · LF · 끝개행 1개)을 지킨다.
+
+    실키 샘플링은 파일을 **기계가 쓴다.** 사람이 손으로 만든 파일에만 규약을
+    적용하면 리포에서 가장 큰 새 파일들이 규약 밖에 놓인다 — cp949 로 열리거나
+    CRLF 가 섞이면 diff 가 통째로 흔들리고, 그때 진짜 변경이 무엇이었는지 볼 수
+    없게 된다.
+    """
+    artifacts = _sampling_artifacts(preset_id)
+    assert artifacts, f"{preset_id}: 샘플링 산출물이 하나도 없다"
+
+    for path in artifacts:
+        raw = path.read_bytes()
+        assert raw, f"{path.name}: 빈 파일"
+        assert not raw.startswith(b"\xef\xbb\xbf"), f"{path.name}: BOM 이 붙었다"
+        assert b"\r\n" not in raw, f"{path.name}: CRLF 가 섞였다"
+        assert raw.endswith(b"\n"), f"{path.name}: 끝개행이 없다"
+        assert not raw.endswith(b"\n\n"), f"{path.name}: 끝개행이 2개 이상이다"
+        # UTF-8 로 디코드되고 JSON 으로 파싱된다.
+        json.loads(raw.decode("utf-8"))
+
+
+@pytest.mark.parametrize("preset_id", SAMPLED_PRESET_IDS)
+def test_sampling_artifacts_carry_no_live_key(preset_id: str) -> None:
+    """샘플링 산출물에 살아 있는 인증키 대입이 0건이다.
+
+    ⚠️ 이 테스트가 **증명할 수 없는 것**을 먼저 밝힌다. 실인증키 원문은 이
+    리포에 들어온 적이 없으므로 "그 값이 없다"를 값으로 대조할 방법이 없다.
+    검사할 수 있는 것은 **형태**뿐이다 — 인증키 자리에 자리표시자가 아닌 것이
+    들어 있는지.
+
+    ⚠️ :func:`find_key_assignments` 를 파일 전문에 그대로 걸면 **거짓 양성**이
+    난다. 그 함수의 값 패턴은 ``[^&#]*`` 라서, JSON 안에 든 URL 처럼 뒤에 ``&``
+    가 없으면 문서 끝까지를 값으로 삼는다(``__SCRUBBED__",\\n  "params": …``
+    전체가 값이 된다 → 자리표시자와 다르다고 판정). 그 함수는 docstring 이
+    밝히듯 **사람이 쓰는 자유문자열**용이다. 그래서 여기서는 JSON 을 파싱해
+    **구조로** 본다 — URL 은 질의문자열을 파싱해서, 매핑은 키 이름을 보고.
+
+    그리고 그것만으로는 **스크러빙이 통째로 꺼져도 통과할 수 있다** — 키
+    파라미터가 아예 기록되지 않았다면 위반이 0 건이다. 그래서 카세트에는
+    자리표시자가 **실제로 1개 이상** 있을 것을 따로 요구한다(위생 처리가
+    돌았다는 양성 증거).
+    """
+    lowered = {name.lower() for name in KEY_PARAM_NAMES}
+
+    def violations(node: object, where: str) -> list[str]:
+        """인증키 자리에 자리표시자가 아닌 값이 들어 있는 지점을 모은다."""
+        found: list[str] = []
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if str(key).lower() in lowered:
+                    if value != SCRUB_PLACEHOLDER_TEXT:
+                        found.append(f"{where}.{key}")
+                else:
+                    found.extend(violations(value, f"{where}.{key}"))
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                found.extend(violations(value, f"{where}[{index}]"))
+        elif isinstance(node, str) and "?" in node:
+            query = urlparse(node).query
+            for key, values in parse_qs(query, keep_blank_values=True).items():
+                if key.lower() in lowered:
+                    for value in values:
+                        if value != SCRUB_PLACEHOLDER_TEXT:
+                            found.append(f"{where}?{key}")
+        return found
+
+    placeholders = 0
+    for path in _sampling_artifacts(preset_id):
+        document = json.loads(path.read_text(encoding="utf-8"))
+        assert violations(document, path.name) == [], (
+            f"{preset_id}/{path.name}: 인증키 자리에 자리표시자가 아닌 값이 있다"
+        )
+        placeholders += path.read_text(encoding="utf-8").count(
+            SCRUB_PLACEHOLDER_TEXT
+        )
+
+    assert placeholders > 0, (
+        f"{preset_id}: 자리표시자가 0개다 — 스크러빙이 돌지 않았을 수 있다"
+    )
+
+
+@pytest.mark.parametrize("preset_id", SAMPLED_PRESET_IDS)
+def test_sampled_schemas_match_the_generated_document(preset_id: str) -> None:
+    """``sampled_schemas.json`` 이 산출 문서·측정일과 앞뒤가 맞는다.
+
+    추론 결과 파일과 산출물이 서로 다른 이야기를 하면 어느 쪽이 정본인지 알 수
+    없다. 개수·측정일·오퍼레이션 식별자를 맞춰 둔다.
+    """
+    directory = PRESETS_ROOT / preset_id
+    sampled = json.loads(
+        (directory / "sampled_schemas.json").read_text(encoding="utf-8")
+    )
+    meta = _document(preset_id)["info"]["x-mcportal"]
+
+    assert sampled["preset_id"] == preset_id
+    assert sampled["sampled_on"] == "2026-08-09"
+    assert meta["generation_mode"] == "sampled"
+
+    # 추론한 오퍼레이션은 전부 산출 문서에 있는 오퍼레이션이다.
+    operation_ids = set(_operations(_document(preset_id)))
+    assert set(sampled["operations"]) <= operation_ids
+
+    # 샘플 개수는 산출물과 추론 결과와 실제 파일 개수가 모두 같은 값을 말한다.
+    sample_files = sorted((directory / "samples").glob("*.json"))
+    assert meta["sample_count"] == sampled["provenance"]["sample_count"]
+    assert len(sample_files) == len(sampled["operations"])
+
+    # 오퍼레이션마다 추론 근거(표본 수)가 남아 있고 충돌이 없다.
+    for operation_id, entry in sampled["operations"].items():
+        inference = entry["inference"]
+        assert inference["sample_count"] >= 1, operation_id
+        assert inference["conflicts"] == 0, operation_id
+        assert entry["response_schema"], operation_id

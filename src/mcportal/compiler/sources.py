@@ -41,12 +41,14 @@ from enum import StrEnum
 from typing import Any
 from urllib.parse import urlsplit
 
+from ..profiles.datago import KEY_LOCATIONS
 from ..replay.scrub import is_credential_param
 
 __all__ = [
     "CATALOG_COMMON_PARAMS",
     "CatalogEntry",
     "GW_OPERATION_META_KEY",
+    "KEY_LOCATIONS",
     "ODCLOUD_COMMON_PARAMS",
     "OperationSpec",
     "PARAM_ROLE_FORMAT",
@@ -141,6 +143,31 @@ class SourceSpec:
     fetched_at: str | None = None       # ISO8601 KST. OpenAPI 문서에는 싣지 않는다
     description: str | None = None
     license_note: str | None = None    # KOGL 유형 등
+    key_location: str = "query"        # 인증키 주입 위치("query" | "header") — F-08
+
+    def __post_init__(self) -> None:
+        """``key_location`` 이 허용값인지 생성 시점에 확인한다(F-08).
+
+        검사를 :func:`_validate_source_spec` 이 아니라 여기에 두는 이유: 이 값은
+        어댑터가 만드는 것이 아니라 **프리셋 래퍼나 프로파일이 나중에 명시**하며
+        (``dataclasses.replace``), 그 경로는 어댑터의 불변식 검증을 다시 거치지
+        않는다. 생성자에 두면 어느 경로로 만들어진 :class:`SourceSpec` 이든 같은
+        규칙을 지난다.
+
+        ``securityDefinitions`` 를 읽어 자동으로 헤더로 승격하는 경로는 **없다**
+        (I3 — 스펙 문서의 선언이 인증 방식을 바꾸게 두지 않는다). 값은 항상
+        사람이 확인한 프리셋 ``source.json`` 또는 프로파일이 명시한다.
+
+        Raises:
+            SourceSpecError: 허용되지 않은 위치를 지정했을 때.
+        """
+        if self.key_location not in KEY_LOCATIONS:
+            raise SourceSpecError(
+                f"key_location 이 올바르지 않습니다: {self.key_location!r} "
+                f"(서비스 {self.service_id}). 허용값: {', '.join(KEY_LOCATIONS)}. "
+                "인증키를 질의문자열이 아닌 곳에 실으려면 프리셋 source.json 의 "
+                "key_location 필드나 프로바이더 프로파일에 명시하세요."
+            )
 
 
 @dataclass(frozen=True)

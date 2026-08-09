@@ -1,0 +1,873 @@
+{
+  "mcportal_sampled": 1,
+  "operations": {
+    "admrulSearchList": {
+      "inference": {
+        "conflicts": 0,
+        "sample_count": 1,
+        "truncated": false
+      },
+      "response_schema": {
+        "properties": {
+          "AdmRulSearch": {
+            "properties": {
+              "admrul": {
+                "items": {
+                  "properties": {
+                    "발령번호": {
+                      "type": "string"
+                    },
+                    "발령일자": {
+                      "type": "string"
+                    },
+                    "생성일자": {
+                      "type": "string"
+                    },
+                    "소관부처명": {
+                      "type": "string"
+                    },
+                    "시행일자": {
+                      "type": "string"
+                    },
+                    "제개정구분명": {
+                      "type": "string"
+                    },
+                    "제개정구분코드": {
+                      "type": "string"
+                    },
+                    "행정규칙ID": {
+                      "type": "string"
+                    },
+                    "행정규칙명": {
+                      "type": "string"
+                    },
+                    "행정규칙상세링크": {
+                      "type": "string"
+                    },
+                    "행정규칙일련번호": {
+                      "type": "string"
+                    },
+                    "행정규칙종류": {
+                      "type": "string"
+                    },
+                    "현행연혁구분": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "발령번호",
+                    "발령일자",
+                    "생성일자",
+                    "소관부처명",
+                    "시행일자",
+                    "제개정구분명",
+                    "제개정구분코드",
+                    "행정규칙ID",
+                    "행정규칙명",
+                    "행정규칙상세링크",
+                    "행정규칙일련번호",
+                    "행정규칙종류",
+                    "현행연혁구분"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "numOfRows": {
+                "type": "string"
+              },
+              "page": {
+                "type": "string"
+              },
+              "resultCode": {
+                "type": "string"
+              },
+              "resultMsg": {
+                "type": "string"
+              },
+              "section": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "totalCnt": {
+                "type": "string"
+              },
+              "키워드": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "admrul",
+              "numOfRows",
+              "page",
+              "resultCode",
+              "resultMsg",
+              "section",
+              "target",
+              "totalCnt",
+              "키워드"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "AdmRulSearch"
+        ],
+        "type": "object"
+      }
+    },
+    "detcSearchList": {
+      "inference": {
+        "conflicts": 0,
+        "sample_count": 1,
+        "truncated": false
+      },
+      "response_schema": {
+        "properties": {
+          "DetcSearch": {
+            "properties": {
+              "Detc": {
+                "items": {
+                  "properties": {
+                    "사건명": {
+                      "type": "string"
+                    },
+                    "사건번호": {
+                      "type": "string"
+                    },
+                    "종국일자": {
+                      "type": "string"
+                    },
+                    "헌재결정례상세링크": {
+                      "type": "string"
+                    },
+                    "헌재결정례일련번호": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "사건명",
+                    "사건번호",
+                    "종국일자",
+                    "헌재결정례상세링크",
+                    "헌재결정례일련번호"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "numOfRows": {
+                "type": "string"
+              },
+              "page": {
+                "type": "string"
+              },
+              "resultCode": {
+                "type": "string"
+              },
+              "resultMsg": {
+                "type": "string"
+              },
+              "section": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "totalCnt": {
+                "type": "string"
+              },
+              "키워드": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "Detc",
+              "numOfRows",
+              "page",
+              "resultCode",
+              "resultMsg",
+              "section",
+              "target",
+              "totalCnt",
+              "키워드"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "DetcSearch"
+        ],
+        "type": "object"
+      }
+    },
+    "expcSearchList": {
+      "inference": {
+        "conflicts": 0,
+        "sample_count": 1,
+        "truncated": false
+      },
+      "response_schema": {
+        "properties": {
+          "Expc": {
+            "properties": {
+              "expc": {
+                "items": {
+                  "properties": {
+                    "법령해석례상세링크": {
+                      "type": "string"
+                    },
+                    "법령해석례일련번호": {
+                      "type": "string"
+                    },
+                    "안건명": {
+                      "type": "string"
+                    },
+                    "안건번호": {
+                      "type": "string"
+                    },
+                    "질의기관명": {
+                      "type": "string"
+                    },
+                    "질의기관코드": {
+                      "type": "string"
+                    },
+                    "회신기관명": {
+                      "type": "string"
+                    },
+                    "회신기관코드": {
+                      "type": "string"
+                    },
+                    "회신일자": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "법령해석례상세링크",
+                    "법령해석례일련번호",
+                    "안건명",
+                    "안건번호",
+                    "질의기관명",
+                    "질의기관코드",
+                    "회신기관명",
+                    "회신기관코드",
+                    "회신일자"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "numOfRows": {
+                "type": "string"
+              },
+              "page": {
+                "type": "string"
+              },
+              "resultCode": {
+                "type": "string"
+              },
+              "resultMsg": {
+                "type": "string"
+              },
+              "section": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "totalCnt": {
+                "type": "string"
+              },
+              "키워드": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "expc",
+              "numOfRows",
+              "page",
+              "resultCode",
+              "resultMsg",
+              "section",
+              "target",
+              "totalCnt",
+              "키워드"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "Expc"
+        ],
+        "type": "object"
+      }
+    },
+    "lawSearchList": {
+      "inference": {
+        "conflicts": 0,
+        "sample_count": 1,
+        "truncated": false
+      },
+      "response_schema": {
+        "properties": {
+          "LawSearch": {
+            "properties": {
+              "law": {
+                "items": {
+                  "properties": {
+                    "공동부령정보": {
+                      "type": "string"
+                    },
+                    "공포번호": {
+                      "type": "string"
+                    },
+                    "공포일자": {
+                      "type": "string"
+                    },
+                    "법령ID": {
+                      "type": "string"
+                    },
+                    "법령구분명": {
+                      "type": "string"
+                    },
+                    "법령명한글": {
+                      "type": "string"
+                    },
+                    "법령상세링크": {
+                      "type": "string"
+                    },
+                    "법령약칭명": {
+                      "type": "string"
+                    },
+                    "법령일련번호": {
+                      "type": "string"
+                    },
+                    "소관부처명": {
+                      "type": "string"
+                    },
+                    "소관부처코드": {
+                      "type": "string"
+                    },
+                    "시행일자": {
+                      "type": "string"
+                    },
+                    "자법타법여부": {
+                      "type": "string"
+                    },
+                    "제개정구분명": {
+                      "type": "string"
+                    },
+                    "현행연혁코드": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "공동부령정보",
+                    "공포번호",
+                    "공포일자",
+                    "법령ID",
+                    "법령구분명",
+                    "법령명한글",
+                    "법령상세링크",
+                    "법령약칭명",
+                    "법령일련번호",
+                    "소관부처명",
+                    "소관부처코드",
+                    "시행일자",
+                    "자법타법여부",
+                    "제개정구분명",
+                    "현행연혁코드"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "numOfRows": {
+                "type": "string"
+              },
+              "page": {
+                "type": "string"
+              },
+              "resultCode": {
+                "type": "string"
+              },
+              "resultMsg": {
+                "type": "string"
+              },
+              "section": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "totalCnt": {
+                "type": "string"
+              },
+              "키워드": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "law",
+              "numOfRows",
+              "page",
+              "resultCode",
+              "resultMsg",
+              "section",
+              "target",
+              "totalCnt",
+              "키워드"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "LawSearch"
+        ],
+        "type": "object"
+      }
+    },
+    "licbylSearchList": {
+      "inference": {
+        "conflicts": 0,
+        "sample_count": 1,
+        "truncated": false
+      },
+      "response_schema": {
+        "properties": {
+          "licBylSearch": {
+            "properties": {
+              "licbyl": {
+                "items": {
+                  "properties": {
+                    "공포번호": {
+                      "type": "string"
+                    },
+                    "공포일자": {
+                      "type": "string"
+                    },
+                    "관련법령ID": {
+                      "type": "string"
+                    },
+                    "관련법령명": {
+                      "type": "string"
+                    },
+                    "관련법령일련번호": {
+                      "type": "string"
+                    },
+                    "법령종류": {
+                      "type": "string"
+                    },
+                    "별표명": {
+                      "type": "string"
+                    },
+                    "별표번호": {
+                      "type": "string"
+                    },
+                    "별표법령상세링크": {
+                      "type": "string"
+                    },
+                    "별표서식PDF파일링크": {
+                      "type": "string"
+                    },
+                    "별표서식파일링크": {
+                      "type": "string"
+                    },
+                    "별표일련번호": {
+                      "type": "string"
+                    },
+                    "별표종류": {
+                      "type": "string"
+                    },
+                    "소관부처명": {
+                      "type": "string"
+                    },
+                    "제개정구분명": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "공포번호",
+                    "공포일자",
+                    "관련법령ID",
+                    "관련법령명",
+                    "관련법령일련번호",
+                    "법령종류",
+                    "별표명",
+                    "별표번호",
+                    "별표법령상세링크",
+                    "별표서식PDF파일링크",
+                    "별표서식파일링크",
+                    "별표일련번호",
+                    "별표종류",
+                    "소관부처명",
+                    "제개정구분명"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "numOfRows": {
+                "type": "string"
+              },
+              "page": {
+                "type": "string"
+              },
+              "resultCode": {
+                "type": "string"
+              },
+              "resultMsg": {
+                "type": "string"
+              },
+              "section": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "totalCnt": {
+                "type": "string"
+              },
+              "키워드": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "licbyl",
+              "numOfRows",
+              "page",
+              "resultCode",
+              "resultMsg",
+              "section",
+              "target",
+              "totalCnt",
+              "키워드"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "licBylSearch"
+        ],
+        "type": "object"
+      }
+    },
+    "lstrmSearchList": {
+      "inference": {
+        "conflicts": 0,
+        "sample_count": 1,
+        "truncated": false
+      },
+      "response_schema": {
+        "properties": {
+          "LsTrmSearch": {
+            "properties": {
+              "lstrm": {
+                "items": {
+                  "properties": {
+                    "법령용어ID": {
+                      "type": "string"
+                    },
+                    "법령용어명": {
+                      "type": "string"
+                    },
+                    "법령용어상세검색": {
+                      "type": "string"
+                    },
+                    "법령용어상세링크": {
+                      "type": "string"
+                    },
+                    "법령종류코드": {
+                      "type": "string"
+                    },
+                    "사전구분코드": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "법령용어ID",
+                    "법령용어명",
+                    "법령용어상세검색",
+                    "법령용어상세링크",
+                    "법령종류코드",
+                    "사전구분코드"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "numOfRows": {
+                "type": "string"
+              },
+              "page": {
+                "type": "string"
+              },
+              "resultCode": {
+                "type": "string"
+              },
+              "resultMsg": {
+                "type": "string"
+              },
+              "section": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "totalCnt": {
+                "type": "string"
+              },
+              "키워드": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "lstrm",
+              "numOfRows",
+              "page",
+              "resultCode",
+              "resultMsg",
+              "section",
+              "target",
+              "totalCnt",
+              "키워드"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "LsTrmSearch"
+        ],
+        "type": "object"
+      }
+    },
+    "ordinSearchList": {
+      "inference": {
+        "conflicts": 0,
+        "sample_count": 1,
+        "truncated": false
+      },
+      "response_schema": {
+        "properties": {
+          "OrdinSearch": {
+            "properties": {
+              "law": {
+                "items": {
+                  "properties": {
+                    "공포번호": {
+                      "type": "string"
+                    },
+                    "공포일자": {
+                      "type": "string"
+                    },
+                    "시행일자": {
+                      "type": "string"
+                    },
+                    "자치법규ID": {
+                      "type": "string"
+                    },
+                    "자치법규명": {
+                      "type": "string"
+                    },
+                    "자치법규분야명": {
+                      "type": "string"
+                    },
+                    "자치법규상세링크": {
+                      "type": "string"
+                    },
+                    "자치법규일련번호": {
+                      "type": "string"
+                    },
+                    "자치법규종류": {
+                      "type": "string"
+                    },
+                    "제개정구분명": {
+                      "type": "string"
+                    },
+                    "지자체기관명": {
+                      "type": "string"
+                    },
+                    "참조데이터구분": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "공포번호",
+                    "공포일자",
+                    "시행일자",
+                    "자치법규ID",
+                    "자치법규명",
+                    "자치법규분야명",
+                    "자치법규상세링크",
+                    "자치법규일련번호",
+                    "자치법규종류",
+                    "제개정구분명",
+                    "지자체기관명",
+                    "참조데이터구분"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "numOfRows": {
+                "type": "string"
+              },
+              "page": {
+                "type": "string"
+              },
+              "resultCode": {
+                "type": "string"
+              },
+              "resultMsg": {
+                "type": "string"
+              },
+              "section": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "totalCnt": {
+                "type": "string"
+              },
+              "키워드": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "law",
+              "numOfRows",
+              "page",
+              "resultCode",
+              "resultMsg",
+              "section",
+              "target",
+              "totalCnt",
+              "키워드"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "OrdinSearch"
+        ],
+        "type": "object"
+      }
+    },
+    "trtySearchList": {
+      "inference": {
+        "conflicts": 0,
+        "sample_count": 1,
+        "truncated": false
+      },
+      "response_schema": {
+        "properties": {
+          "TrtySearch": {
+            "properties": {
+              "Trty": {
+                "items": {
+                  "properties": {
+                    "관보게제일자": {
+                      "type": "string"
+                    },
+                    "국가번호": {
+                      "type": "string"
+                    },
+                    "발효일자": {
+                      "type": "string"
+                    },
+                    "서명일자": {
+                      "type": "string"
+                    },
+                    "조약구분명": {
+                      "type": "string"
+                    },
+                    "조약구분코드": {
+                      "type": "string"
+                    },
+                    "조약명": {
+                      "type": "string"
+                    },
+                    "조약번호": {
+                      "type": "string"
+                    },
+                    "조약상세링크": {
+                      "type": "string"
+                    },
+                    "조약일련번호": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "관보게제일자",
+                    "국가번호",
+                    "발효일자",
+                    "서명일자",
+                    "조약구분명",
+                    "조약구분코드",
+                    "조약명",
+                    "조약번호",
+                    "조약상세링크",
+                    "조약일련번호"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "numOfRows": {
+                "type": "string"
+              },
+              "page": {
+                "type": "string"
+              },
+              "resultCode": {
+                "type": "string"
+              },
+              "resultMsg": {
+                "type": "string"
+              },
+              "section": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "totalCnt": {
+                "type": "string"
+              },
+              "키워드": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "Trty",
+              "numOfRows",
+              "page",
+              "resultCode",
+              "resultMsg",
+              "section",
+              "target",
+              "totalCnt",
+              "키워드"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "TrtySearch"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "preset_id": "15000115",
+  "provenance": {
+    "call_count": 8,
+    "cassette": "cassettes/15000115.json",
+    "cassette_sha256": "sha256:c2d323433722020048f767d8d19b16e55d05a297dff5e66ac18c9b3ee5239a75",
+    "sample_count": 8
+  },
+  "sampled_on": "2026-08-09"
+}

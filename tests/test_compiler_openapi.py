@@ -766,3 +766,73 @@ def test_committed_demo_spec_carries_schema_level_examples() -> None:
     by_name = {param["name"]: param for param in parameters}
     assert by_name["pageNo"]["schema"]["examples"] == [1]
     assert by_name["numOfRows"]["schema"]["examples"] == [10]
+
+
+# ---------------------------------------------------------------------------
+# W4 §5 - 큐레이션 없는 경로의 파라미터 '값' 자유문자열 게이트
+# ---------------------------------------------------------------------------
+_LEAKY = "https://apis.example.invalid/demo?serviceKey=ab12%2BCD%2F34%3D%3D&pageNo=1"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("description", _LEAKY),
+        ("example", _LEAKY),
+        ("default", _LEAKY),
+    ],
+)
+def test_parameter_value_fields_with_key_assignment_are_rejected(
+    field: str, value: str
+) -> None:
+    """파라미터의 설명뿐 아니라 example·default 도 인증키 대입을 통과시키지 않는다.
+
+    큐레이션 병합 게이트(V8)는 처음부터 값 필드까지 훑었는데 큐레이션 없는
+    경로의 게이트는 설명문 3자리만 봤다. 그 비대칭 때문에 원 스펙이 호출 예시
+    URL 을 파라미터 예시로 들고 있으면 산출 문서의 ``schema.examples`` 까지
+    그대로 실렸다(W4 §5).
+    """
+    param = _param("targetYm", **{field: value})
+    source = _source((_operation(parameters=(param,)),))
+    with pytest.raises(CompileError) as excinfo:
+        build_openapi(source)
+    message = str(excinfo.value)
+    assert "serviceKey" in message
+    assert field in message
+    assert "targetYm" in message
+
+
+def test_parameter_enum_with_key_assignment_is_rejected() -> None:
+    """열거값에 숨은 인증키 대입도 막는다(enum 은 도구 인자 후보로 그대로 노출된다)."""
+    param = _param("mode", required=False, enum=("json", _LEAKY))
+    source = _source((_operation(parameters=(param,)),))
+    with pytest.raises(CompileError, match="enum"):
+        build_openapi(source)
+
+
+def test_operation_tag_with_key_assignment_is_rejected() -> None:
+    """태그도 도구 설명에 실리는 자유문자열이므로 같은 게이트를 지난다."""
+    source = _source((_operation(tags=("정상태그", _LEAKY)),))
+    with pytest.raises(CompileError, match="tags"):
+        build_openapi(source)
+
+
+def test_clean_parameter_values_still_compile() -> None:
+    """게이트 확장이 정상 값(예시·기본값·열거값)을 잡아채지 않는다.
+
+    게이트를 넓히면 오탐으로 기존 프리셋 컴파일을 깨뜨릴 수 있다. 자격증명
+    이름이 **값 없이** 문장에 등장하는 경우까지 막으면 안 된다는 것도 함께 본다
+    (``find_key_assignments`` 는 값이 붙은 대입만 탐지한다).
+    """
+    param = _param(
+        "pageNo",
+        required=False,
+        type_="integer",
+        description="serviceKey 는 트랜스포트가 주입하므로 인자가 아니다.",
+        example="1",
+        default="1",
+        enum=("1", "2"),
+    )
+    compiled = build_openapi(_source((_operation(parameters=(param,)),)))
+    listed = compiled.document["paths"]["/getDemoList"]["get"]["parameters"]
+    assert listed[0]["schema"]["examples"] == [1]

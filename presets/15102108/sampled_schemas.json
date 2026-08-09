@@ -1,0 +1,102 @@
+{
+  "mcportal_sampled": 1,
+  "operations": {
+    "getNewtradeList": {
+      "inference": {
+        "conflicts": 0,
+        "sample_count": 1,
+        "truncated": false
+      },
+      "response_schema": {
+        "properties": {
+          "response": {
+            "properties": {
+              "body": {
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "item": {
+                        "items": {
+                          "properties": {
+                            "balPayments": {
+                              "type": "string"
+                            },
+                            "expCnt": {
+                              "type": "string"
+                            },
+                            "expDlr": {
+                              "type": "string"
+                            },
+                            "impCnt": {
+                              "type": "string"
+                            },
+                            "impDlr": {
+                              "type": "string"
+                            },
+                            "year": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "balPayments",
+                            "expCnt",
+                            "expDlr",
+                            "impCnt",
+                            "impDlr",
+                            "year"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "item"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "items"
+                ],
+                "type": "object"
+              },
+              "header": {
+                "properties": {
+                  "resultCode": {
+                    "type": "string"
+                  },
+                  "resultMsg": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "resultCode",
+                  "resultMsg"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "body",
+              "header"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "response"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "preset_id": "15102108",
+  "provenance": {
+    "call_count": 1,
+    "cassette": "cassettes/15102108.json",
+    "cassette_sha256": "sha256:a1872fd1b833cd371b6b58b340ab17cb3c5d66432219efe2a22490d5ecb9bdc7",
+    "sample_count": 1
+  },
+  "sampled_on": "2026-08-09"
+}

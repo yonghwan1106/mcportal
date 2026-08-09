@@ -467,6 +467,15 @@ def _guard_operation_free_text(
     :func:`write_spec` 과 대칭이 되도록 산출 직전에 접는다
     (2026-08-09 Advisor 검증 A4).
 
+    검사 범위는 오퍼레이션의 ``summary`` · ``description`` · ``tags`` 와 파라미터의
+    ``description`` · ``example`` · ``default`` · ``enum`` 이다. W3 는 설명문 3자리만
+    봤는데, 큐레이션 경로의 병합 게이트(V8, :func:`~mcportal.compiler.curation.
+    _merged_free_text_targets`)는 처음부터 **값 필드까지** 훑고 있었다. 그 비대칭
+    때문에 큐레이션 없는 소스가 ``example: "...serviceKey=<값>&pageNo=1"`` 같은
+    호출 예시 URL 을 파라미터 예시로 들고 있으면(정부 스펙 문서의 흔한 표기)
+    그대로 산출 문서의 ``schema.examples`` 에 실려 도구 설명까지 도달했다. 같은
+    자리를 두 경로가 다르게 보는 상태를 없앤다(W4 §5).
+
     자격증명 이름 목록은 F4 처방대로 :data:`_FREE_TEXT_KEY_PARAMS` 정본을 쓴다.
 
     Args:
@@ -478,29 +487,28 @@ def _guard_operation_free_text(
     """
     for operation in operations:
         operation_id = str(operation.operation_id)
+        where = f"오퍼레이션 {operation_id}"
         if operation.summary is not None:
             _guard_free_text(
-                operation.summary,
-                where=f"오퍼레이션 {operation_id}의 summary",
-                key_param=key_param,
+                operation.summary, where=f"{where}의 summary", key_param=key_param
             )
         if operation.description is not None:
             _guard_free_text(
                 operation.description,
-                where=f"오퍼레이션 {operation_id}의 description",
+                where=f"{where}의 description",
                 key_param=key_param,
             )
+        for tag in operation.tags:
+            _guard_free_text(tag, where=f"{where}의 tags", key_param=key_param)
         for param in operation.parameters:
-            if param.description is None:
-                continue
-            _guard_free_text(
-                param.description,
-                where=(
-                    f"오퍼레이션 {operation_id}의 파라미터 "
-                    f"{param.name}의 description"
-                ),
-                key_param=key_param,
-            )
+            field = f"{where}의 파라미터 {param.name}"
+            for name in ("description", "example", "default"):
+                value = getattr(param, name)
+                if value is None:
+                    continue
+                _guard_free_text(value, where=f"{field}의 {name}", key_param=key_param)
+            for item in param.enum:
+                _guard_free_text(item, where=f"{field}의 enum", key_param=key_param)
 
 
 def build_openapi(

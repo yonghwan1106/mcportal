@@ -370,6 +370,7 @@ def sample_source(
     ledger_path: PathLike | None = None,
     profile: ProviderProfile = DATA_GO_KR,
     operation_ids: Sequence[str] | None = None,
+    overrides: Mapping[str, str] | None = None,
 ) -> dict[str, tuple[SampleResult, ...]]:
     """소스의 오퍼레이션들을 샘플링한다(operation_id → 결과들).
 
@@ -390,6 +391,13 @@ def sample_source(
         ledger_path: 사용량 원장 경로.
         profile: 프로바이더 프로파일.
         operation_ids: 샘플링할 오퍼레이션 부분집합(None 이면 전부).
+        overrides: 파라미터 이름 → 강제 값. :func:`build_sample_requests` 로 그대로
+            내려간다. 이 통로가 없어서, 필수 파라미터의 값을 스펙에서 정할 수 없는
+            오퍼레이션(``example`` · ``default`` · ``enum`` 이 전부 비고 관용 이름도
+            아닌 경우)은 :class:`SampleParamError` 로 막히고 **호출자가 우회할 방법이
+            없었다** — 저수준 :func:`build_sample_requests` 를 직접 쓰지 않는 한
+            오케스트레이터 경로에서 값을 지정할 자리가 아예 없었다. 기본값이
+            ``None`` 이라 기존 호출부의 동작은 1비트도 바뀌지 않는다.
 
     Returns:
         operation_id → :class:`SampleResult` 튜플.
@@ -433,7 +441,9 @@ def sample_source(
     )
     with client:
         for operation_id in targets:
-            requests = build_sample_requests(source, operation_id, count=total)
+            requests = build_sample_requests(
+                source, operation_id, count=total, overrides=overrides
+            )
             results[operation_id] = sample_operation(
                 client, requests, base_url=str(source.base_url)
             )

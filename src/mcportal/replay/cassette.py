@@ -210,6 +210,14 @@ class Cassette:
 
         ``key_params`` 가 기본값과 같으면 필드를 쓰지 않는다 — W1이 만든 기존
         카세트 파일과 바이트 동일성을 유지하기 위함이다.
+
+        줄바꿈은 **플랫폼과 무관하게 LF** 로 쓰고 끝개행을 하나 붙인다. 기본
+        ``write_text`` 는 Windows 에서 ``\\n`` 을 ``\\r\\n`` 으로 번역하므로, 같은
+        카세트를 OS 마다 다른 바이트로 저장하게 된다. 그것이 문제인 이유는
+        저장 바이트로 계산한 sha256 을 출처 기록에 싣기 때문이다 —
+        ``.gitattributes`` 의 ``* text=auto eol=lf`` 가 커밋 시점에 CRLF 를 LF 로
+        정규화하므로, CRLF 로 저장하면 **클론한 사람에게는 기록된 해시가 전부
+        거짓**이 된다(``presets/_raw`` 를 ``-text`` 로 뺀 것과 같은 사고).
         """
         data: dict[str, Any] = {
             "version": self.version,
@@ -219,8 +227,9 @@ class Cassette:
             data["key_params"] = list(self.key_params)
         data["interactions"] = self.interactions
         Path(path).write_text(
-            json.dumps(data, ensure_ascii=False, indent=2),
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
+            newline="\n",
         )
 
     # -- 녹화/조회 ------------------------------------------------------

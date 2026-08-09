@@ -2,7 +2,93 @@
   "components": {
     "schemas": {
       "GetNationtradeListResponse": {
-        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "properties": {
+          "response": {
+            "properties": {
+              "body": {
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "item": {
+                        "items": {
+                          "properties": {
+                            "balPayments": {
+                              "type": "string"
+                            },
+                            "expCnt": {
+                              "type": "string"
+                            },
+                            "expDlr": {
+                              "type": "string"
+                            },
+                            "impCnt": {
+                              "type": "string"
+                            },
+                            "impDlr": {
+                              "type": "string"
+                            },
+                            "statCd": {
+                              "type": "string"
+                            },
+                            "statCdCntnKor1": {
+                              "type": "string"
+                            },
+                            "year": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "balPayments",
+                            "expCnt",
+                            "expDlr",
+                            "impCnt",
+                            "impDlr",
+                            "statCd",
+                            "statCdCntnKor1",
+                            "year"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "item"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "items"
+                ],
+                "type": "object"
+              },
+              "header": {
+                "properties": {
+                  "resultCode": {
+                    "type": "string"
+                  },
+                  "resultMsg": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "resultCode",
+                  "resultMsg"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "body",
+              "header"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "response"
+        ],
         "type": "object"
       }
     }
@@ -12,21 +98,20 @@
     "title": "관세청 국가별 수출입실적",
     "version": "0.1.0",
     "x-mcportal": {
-      "generation_mode": "offline",
+      "generation_mode": "sampled",
       "key_injection": "transport",
       "license_note": "이용허락범위 제한 없음(data.go.kr 표기, 2026-08-06 확인)",
       "provider": "data.go.kr",
-      "sample_count": 0,
+      "sample_count": 1,
       "schema_inference": {
         "conflicts": 0,
-        "truncated": false,
-        "unresolved": 1
+        "truncated": false
       },
       "service_id": "15101612",
       "source_fingerprint": "sha256:76db39aeabda9714a68783e4cf15a60e46e60bbf9baf58f4b52f7d486d350ad9",
       "source_kind": "gw_swagger",
       "source_url": "https://www.data.go.kr/data/15101612/openapi.do",
-      "tool_version": "0.1.0"
+      "tool_version": "0.2.0"
     }
   },
   "openapi": "3.1.0",

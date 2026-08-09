@@ -14,16 +14,22 @@ MCPortal 의 2층 구조에서 아래층(엔진)은 공공 스펙을 기계적�
         정찰이 취득한 스펙 원문 + 출처·취득일·지문(아래층 입력).
     ``curation.json``
         사람이 확인한 설명·예시·힌트(위층 입력). 없어도 컴파일된다.
+    ``sampled_schemas.json``
+        실키 샘플링이 **실측한** 응답 스키마(측정층 입력). 없어도 컴파일된다.
     ``openapi.json``
-        두 층을 병합해 산출한 OpenAPI 3.1 문서(커밋 대상).
+        세 층을 병합해 산출한 OpenAPI 3.1 문서(커밋 대상).
 
 설계 원칙
 ---------
 * **도메인 로직 0줄** — 이 파일에는 특정 서비스의 식별자·기관명·파라미터명이
   하나도 등장하지 않는다. 도메인 지식은 전부 번들의 JSON 에 있다.
-* **결정론** — 같은 ``source.json`` + ``curation.json`` 이면 **바이트 동일한**
-  ``openapi.json`` 이 나온다. 매핑 순회는 전부 ``sorted()`` 를 거치므로 JSON 의
-  키 순서를 뒤집어도 결과가 같다.
+* **결정론** — 같은 ``source.json`` + ``curation.json`` + ``sampled_schemas.json``
+  이면 **바이트 동일한** ``openapi.json`` 이 나온다. 매핑 순회는 전부 ``sorted()``
+  를 거치므로 JSON 의 키 순서를 뒤집어도 결과가 같다.
+* **측정 결과도 데이터** — 라이브 표본에서 추론한 스키마는 산출물에만 남기지
+  않고 ``sampled_schemas.json`` 으로 **영속화**한다. 그래야 키가 없는 사람이
+  같은 번들을 다시 컴파일해도 같은 바이트가 나오고 ``compile --check`` 가
+  드리프트를 내지 않는다. 재현할 수 없는 산출물은 커밋할 수 없다.
 * **사실은 큐레이션이 바꾸지 않는다** — 타입·위치·필수 여부·경로·메서드는 원
   스펙 선언이 정본이다. 사실을 교정하는 통로는 근거를 요구하는 두 가지
   (``parameters_remove`` · ``response.unresolved``)뿐이다.
@@ -33,13 +39,15 @@ MCPortal 의 2층 구조에서 아래층(엔진)은 공공 스펙을 기계적�
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from ..replay.scrub import CREDENTIAL_PARAM_NAMES, find_key_assignments
 from .openapi import (
@@ -59,6 +67,10 @@ from .sources import (
     unresolved_schema_operations,
 )
 
+if TYPE_CHECKING:  # pragma: no cover - 정적 분석 전용(런타임 임포트 아님)
+    from ..profiles import ProviderProfile
+    from .sampler import SampleResult
+
 __all__ = [
     "CURATION_SCHEMA_VERSION",
     "Curation",
@@ -66,29 +78,43 @@ __all__ = [
     "CurationReport",
     "ENV_PRESETS_ROOT",
     "OperationCuration",
+    "PRESET_CASSETTE_DIRNAME",
     "PRESET_CURATION_FILENAME",
     "PRESET_OPENAPI_FILENAME",
+    "PRESET_SAMPLED_FILENAME",
+    "PRESET_SAMPLES_DIRNAME",
     "PRESET_SOURCE_FILENAME",
     "PRESET_SOURCE_SCHEMA_VERSION",
     "PROVENANCE_KEYS",
     "ParamCuration",
     "ParamRemoval",
     "PresetInfo",
+    "PresetOperationSample",
+    "PresetSampleReport",
     "ResponseCuration",
+    "SAMPLED_SCHEMA_VERSION",
+    "SampledInference",
+    "SampledOperation",
+    "SampledSchemas",
     "ServiceCuration",
     "apply_curation",
     "apply_curation_with_report",
+    "apply_sampled_schemas",
     "check_preset",
     "compile_preset",
     "default_presets_root",
     "iter_presets",
     "load_curation",
     "load_preset",
+    "load_sampled_schemas",
     "preset_info",
     "read_curation",
     "read_preset_source",
+    "read_sampled_schemas",
+    "sample_preset",
     "validate_curation",
     "write_preset",
+    "write_sampled_schemas",
 ]
 
 #: 큐레이션 문서 스키마 버전.
@@ -97,6 +123,9 @@ CURATION_SCHEMA_VERSION: int = 1
 #: 프리셋 소스 래퍼 스키마 버전.
 PRESET_SOURCE_SCHEMA_VERSION: int = 1
 
+#: 샘플 스키마 문서 스키마 버전.
+SAMPLED_SCHEMA_VERSION: int = 1
+
 #: 프리셋 루트를 지정하는 환경변수.
 ENV_PRESETS_ROOT: str = "MCPORTAL_PRESETS"
 
@@ -104,6 +133,18 @@ ENV_PRESETS_ROOT: str = "MCPORTAL_PRESETS"
 PRESET_SOURCE_FILENAME: str = "source.json"
 PRESET_CURATION_FILENAME: str = "curation.json"
 PRESET_OPENAPI_FILENAME: str = "openapi.json"
+
+#: 실키 샘플링이 실측한 응답 스키마를 영속화하는 파일명(측정층).
+#:
+#: 이 파일이 있으면 **키가 없는 사람의 오프라인 컴파일도** 같은 바이트를 낸다.
+#: 없으면 이 층은 통째로 없는 것이고 산출물은 소스+큐레이션만으로 결정된다.
+PRESET_SAMPLED_FILENAME: str = "sampled_schemas.json"
+
+#: 실키 샘플링 산출물이 놓이는 번들 하위 디렉터리명.
+#: 카세트는 무키 재현(``mode="replay"``)의 입력이고, 샘플은 추론 근거의 증거물이다.
+#: 둘 다 리포에는 남기되 **wheel 에는 싣지 않는다**(패키징 결정, W4 §6-1).
+PRESET_CASSETTE_DIRNAME: str = "cassettes"
+PRESET_SAMPLES_DIRNAME: str = "samples"
 
 PathLike = Union[str, Path]
 
@@ -160,6 +201,24 @@ _PARAM_KEYS: frozenset[str] = frozenset(
 _RESPONSE_KEYS: frozenset[str] = frozenset({"unresolved", "reason"})
 _REMOVAL_KEYS: frozenset[str] = frozenset({"name", "reason"})
 
+#: ``sampled_schemas.json`` 각 계층에서 허용되는 키들(V2 와 같은 취지의 게이트).
+_SAMPLED_TOP_KEYS: frozenset[str] = frozenset(
+    {"mcportal_sampled", "preset_id", "sampled_on", "provenance", "operations"}
+)
+_SAMPLED_PROVENANCE_KEYS: frozenset[str] = frozenset(
+    {"cassette", "cassette_sha256", "sample_count", "call_count"}
+)
+_SAMPLED_OPERATION_KEYS: frozenset[str] = frozenset({"response_schema", "inference"})
+_SAMPLED_INFERENCE_KEYS: frozenset[str] = frozenset(
+    {"sample_count", "conflicts", "truncated"}
+)
+
+#: ``sampled_on`` 이 만족해야 하는 형태(날짜만 — 시각·타임존은 적지 않는다).
+_SAMPLED_ON_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+#: 측정일 기준 시간대(KST). 측정 주체가 어디에 있든 같은 날짜 표기를 쓴다.
+_KST = timezone(timedelta(hours=9))
+
 _SOURCE_WRAPPER_KEYS: frozenset[str] = frozenset(
     {
         "mcportal_preset_source",
@@ -168,6 +227,7 @@ _SOURCE_WRAPPER_KEYS: frozenset[str] = frozenset(
         "service_name",
         "source_kind",
         "key_param",
+        "key_location",
         "source_url",
         "fetched_at",
         "license_note",
@@ -269,6 +329,59 @@ class Curation:
 
 
 @dataclass(frozen=True)
+class SampledInference:
+    """영속화된 추론 요약 1건(집계 수치만 — 표본 값은 하나도 담지 않는다).
+
+    :func:`~mcportal.compiler.openapi.build_openapi` 는 리포트에서
+    ``sample_count`` · ``len(conflicts)`` · ``truncated`` **세 가지만** 읽어
+    ``x-mcportal`` 메타를 만든다. 그래서 커밋 대상 파일에는 그 세 수치만 적고,
+    :attr:`conflicts` 는 개수를 길이로 갖는 자리표시자 튜플로 되돌려 준다 —
+    :class:`~mcportal.compiler.inference.InferenceReport` 자리에 그대로 끼워도
+    같은 문서가 나오게 하기 위한 형태 맞춤이며, 충돌의 위치·타입 같은 상세는
+    이 층의 관심사가 아니다.
+
+    Attributes:
+        sample_count: 추론에 실제로 쓰인 표본 수.
+        conflict_count: 타입 충돌 기록 수.
+        truncated: 깊이·속성 수 상한으로 잘라낸 곳이 있었는지 여부.
+    """
+
+    sample_count: int
+    conflict_count: int
+    truncated: bool
+
+    @property
+    def conflicts(self) -> tuple[None, ...]:
+        """충돌 **개수**를 길이로 갖는 자리표시자(내용은 비어 있다)."""
+        return (None,) * self.conflict_count
+
+
+@dataclass(frozen=True)
+class SampledOperation:
+    """오퍼레이션 1건의 실측 응답 스키마와 그 추론 요약."""
+
+    response_schema: Mapping[str, Any]
+    inference: SampledInference
+
+
+@dataclass(frozen=True)
+class SampledSchemas:
+    """``sampled_schemas.json`` 1건(측정층 문서).
+
+    Attributes:
+        preset_id: 대상 프리셋 식별자(디렉터리명·``source.json`` 과 일치해야 한다).
+        sampled_on: 측정일(KST 날짜). 시각은 적지 않는다.
+        provenance: 측정 출처(카세트 경로·지문·표본 수·호출 수).
+        operations: ``operation_id`` → :class:`SampledOperation`.
+    """
+
+    preset_id: str
+    sampled_on: str
+    provenance: Mapping[str, Any]
+    operations: Mapping[str, SampledOperation] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class CurationReport:
     """병합 1회의 적용 요약(문서·테스트·CLI 표시용)."""
 
@@ -280,8 +393,93 @@ class CurationReport:
 
 
 @dataclass(frozen=True)
+class PresetOperationSample:
+    """실키 샘플링에서 오퍼레이션 1건이 남긴 요약(값은 하나도 담지 않는다).
+
+    응답 본문·인증키는 **이 자료형에 절대 담기지 않는다**. 사람이 보는 출력과
+    ``--json`` 계약이 모두 이 요약만 읽으므로, 여기에 값이 없으면 화면·로그·
+    파이프 어디로도 새지 않는다. 실제 페이로드는 스크러빙을 거쳐
+    ``samples/`` 파일로만 남는다.
+
+    Attributes:
+        operation_id: 대상 오퍼레이션.
+        calls: 실제로 나간 상위 호출 수(중복 제거 후).
+        ok: 전송·업무 응답이 모두 정상이었던 호출 수(추론 입력 자격).
+        failed: 그 밖의 호출 수.
+        status_codes: 관측된 HTTP 상태 코드(오름차순·중복 제거).
+        result_codes: 관측된 data.go.kr ``resultCode``(오름차순·중복 제거).
+        schema_inferred: 이 오퍼레이션의 응답 스키마를 확정했는지 여부.
+        sample_count: 추론에 실제로 쓰인 표본 수.
+        property_count: 추론 스키마의 ``properties`` 총 개수(중첩 포함).
+        max_depth: 관측된 최대 깊이(루트가 0).
+        truncated: 깊이·속성 수 상한으로 잘라낸 곳이 있으면 True.
+        conflicts: 타입 충돌 기록 수.
+    """
+
+    operation_id: str
+    calls: int
+    ok: int
+    failed: int
+    status_codes: tuple[int, ...] = ()
+    result_codes: tuple[str, ...] = ()
+    schema_inferred: bool = False
+    sample_count: int = 0
+    property_count: int = 0
+    max_depth: int = 0
+    truncated: bool = False
+    conflicts: int = 0
+
+
+@dataclass(frozen=True)
+class PresetSampleReport:
+    """프리셋 1건의 실키 샘플링 1회 요약.
+
+    Attributes:
+        preset_id: 대상 프리셋 식별자.
+        directory: 번들 디렉터리.
+        target_operations: 샘플링 대상으로 고른 미확정 오퍼레이션들(오름차순).
+        call_count: 나간 상위 호출 총합.
+        ok_count: 정상 응답 호출 수.
+        failed_count: 실패 응답 호출 수.
+        operations: 오퍼레이션별 요약(:class:`PresetOperationSample`).
+        resolved_operations: 응답 스키마를 확정한 오퍼레이션들(오름차순).
+        cassette_path: 녹화된 카세트 경로.
+        samples_dir: 샘플 파일이 놓인 디렉터리.
+        sample_paths: 기록된 샘플 파일 경로들.
+        openapi_path: 갱신한 ``openapi.json`` 경로. 대상이 없거나 확정한 스키마가
+            하나도 없어 갱신하지 않았으면 ``None``.
+        sampled_path: 기록한 ``sampled_schemas.json`` 경로(갱신하지 않았으면
+            ``None``). 이 파일이 있어야 오프라인 재컴파일이 같은 바이트를 낸다.
+    """
+
+    preset_id: str
+    directory: Path
+    target_operations: tuple[str, ...]
+    call_count: int
+    ok_count: int
+    failed_count: int
+    operations: tuple[PresetOperationSample, ...]
+    resolved_operations: tuple[str, ...]
+    cassette_path: Path
+    samples_dir: Path
+    sample_paths: tuple[Path, ...] = ()
+    openapi_path: Path | None = None
+    sampled_path: Path | None = None
+
+
+@dataclass(frozen=True)
 class PresetInfo:
-    """프리셋 번들 1건의 요약."""
+    """프리셋 번들 1건의 요약.
+
+    Attributes:
+        unresolved_count: **측정층까지 반영한** 미확정 응답 스키마 수. 산출
+            ``openapi.json`` 의 ``x-mcportal.schema_inference.unresolved`` 와 같은
+            값이다 — 샘플링으로 채워진 자리를 여기서 여전히 "미확정"이라고 세면
+            CLI 표가 산출물과 다른 사실을 말하게 된다.
+        sampled_path: ``sampled_schemas.json`` 경로(없으면 ``None``).
+        resolved_by_sampling: 소스·큐레이션 기준으로는 미확정이었는데 실측
+            스키마가 채운 오퍼레이션 수.
+    """
 
     preset_id: str
     service_id: str
@@ -296,6 +494,8 @@ class PresetInfo:
     unresolved_count: int
     license_note: str | None
     notes: tuple[str, ...]
+    sampled_path: Path | None = None
+    resolved_by_sampling: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +539,20 @@ def _expect_bool(value: Any, *, path: str) -> bool:
         raise CurationError(
             f"{path}의 타입이 올바르지 않습니다. 기대: 불리언(true/false), "
             f"받은 타입: {_type_name(value)}."
+        )
+    return value
+
+
+def _expect_int(value: Any, *, path: str, minimum: int | None = None) -> int:
+    """정수임을 확인한다(V12). ``_expect_bool`` 과 대칭으로 불리언을 거부한다."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise CurationError(
+            f"{path}의 타입이 올바르지 않습니다. 기대: 정수, "
+            f"받은 타입: {_type_name(value)}."
+        )
+    if minimum is not None and value < minimum:
+        raise CurationError(
+            f"{path} 값이 범위를 벗어났습니다: {value} (최소 {minimum})."
         )
     return value
 
@@ -1281,6 +1495,15 @@ def _wrapper_to_source(wrapper: Mapping[str, Any]) -> SourceSpec:
         _expect_text(wrapper.get("key_param"), path="source.key_param", allow_none=True)
         or "serviceKey"
     )
+    # F-08: 인증키 주입 위치는 **선택 필드**다. 생략하면 질의문자열(기본값)이므로
+    # 이 필드를 쓰지 않는 기존 번들 4종은 산출물이 1바이트도 바뀌지 않는다.
+    # 허용값 검증은 SourceSpec.__post_init__ 이 한다(SourceSpecError).
+    key_location = (
+        _expect_text(
+            wrapper.get("key_location"), path="source.key_location", allow_none=True
+        )
+        or SourceSpec.key_location
+    )
     source_url = wrapper.get("source_url")
     license_note = wrapper.get("license_note")
 
@@ -1298,6 +1521,8 @@ def _wrapper_to_source(wrapper: Mapping[str, Any]) -> SourceSpec:
         spec = replace(spec, source_url=str(source_url))
     if spec.license_note is None and license_note is not None:
         spec = replace(spec, license_note=str(license_note))
+    if key_location != spec.key_location:
+        spec = replace(spec, key_location=key_location)
     return spec
 
 
@@ -1327,6 +1552,321 @@ def read_preset_source(path: PathLike) -> tuple[SourceSpec, Mapping[str, Any]]:
     )
 
 
+# ---------------------------------------------------------------------------
+# 측정층 — sampled_schemas.json (W4 후속: 실측 결과의 영속화)
+# ---------------------------------------------------------------------------
+def _load_sampled_inference(raw: Any, *, path: str) -> SampledInference:
+    """추론 요약 블록을 읽는다."""
+    mapping = _expect_mapping(raw, path=path)
+    _reject_unknown_keys(mapping, _SAMPLED_INFERENCE_KEYS, path=path)
+    # 표본 0건으로 확정된 스키마는 존재할 수 없다(추론기가 그런 결과를 만들지
+    # 않는다). 0 을 허용하면 "측정했다"는 거짓 기록이 통과한다.
+    sample_count = _expect_int(
+        mapping.get("sample_count"), path=f"{path}.sample_count", minimum=1
+    )
+    conflicts = _expect_int(mapping.get("conflicts"), path=f"{path}.conflicts", minimum=0)
+    truncated = _expect_bool(mapping.get("truncated"), path=f"{path}.truncated")
+    return SampledInference(
+        sample_count=sample_count, conflict_count=conflicts, truncated=truncated
+    )
+
+
+def _load_sampled_operation(raw: Any, *, path: str) -> SampledOperation:
+    """오퍼레이션 1건의 실측 스키마 블록을 읽는다.
+
+    금지 필드(V9) 게이트는 여기에 걸지 않는다. ``response_schema`` 는 큐레이션
+    계층에서는 금지 필드지만(사람이 사실을 뒤집는 통로가 되면 안 되므로) 이 층은
+    **사람의 의견이 아니라 실측**이라 그 값을 적는 것이 존재 이유다. 대신 근거를
+    ``provenance`` 로 요구해 "무엇을 재생하면 같은 값이 나오는지"를 남긴다.
+    """
+    mapping = _expect_mapping(raw, path=path)
+    _reject_unknown_keys(mapping, _SAMPLED_OPERATION_KEYS, path=path)
+    schema = _expect_mapping(
+        mapping.get("response_schema"), path=f"{path}.response_schema"
+    )
+    if not schema:
+        raise CurationError(
+            f"{path}.response_schema 가 비어 있습니다. 빈 객체는 '아무 제약도 없음'"
+            "이라 폴백 스키마보다도 못한 확정 선언이 됩니다. 표본에서 아무것도 "
+            "얻지 못했다면 그 오퍼레이션 항목을 통째로 지우세요(폴백으로 돌아갑니다)."
+        )
+    inference = _load_sampled_inference(mapping.get("inference"), path=f"{path}.inference")
+    return SampledOperation(response_schema=schema, inference=inference)
+
+
+def _load_sampled_provenance(raw: Any, *, path: str) -> Mapping[str, Any]:
+    """측정 출처 블록을 읽는다(네 키 모두 필수, 카세트 정보는 null 허용)."""
+    mapping = _expect_mapping(raw, path=path)
+    _reject_unknown_keys(mapping, _SAMPLED_PROVENANCE_KEYS, path=path)
+    for name in ("cassette", "cassette_sha256"):
+        if name not in mapping:
+            raise CurationError(
+                f"{path}.{name} 필드가 없습니다. 실측 결과는 무엇을 재생하면 같은 "
+                "값이 나오는지를 함께 적어야 합니다(카세트가 없으면 null 을 적으세요)."
+            )
+        _expect_text(mapping.get(name), path=f"{path}.{name}", allow_none=True)
+    counts = {
+        name: _expect_int(mapping.get(name), path=f"{path}.{name}", minimum=0)
+        for name in ("sample_count", "call_count")
+    }
+    return {
+        "cassette": mapping.get("cassette"),
+        "cassette_sha256": mapping.get("cassette_sha256"),
+        "sample_count": counts["sample_count"],
+        "call_count": counts["call_count"],
+    }
+
+
+def load_sampled_schemas(
+    document: Mapping[str, Any], *, preset_id: str | None = None
+) -> SampledSchemas:
+    """실측 스키마 문서(JSON 객체)를 :class:`SampledSchemas` 로 읽는다.
+
+    Args:
+        document: ``sampled_schemas.json`` 의 내용.
+        preset_id: 대조할 프리셋 식별자(``None`` 이면 대조하지 않는다).
+
+    Returns:
+        검증을 통과한 :class:`SampledSchemas`.
+
+    Raises:
+        CurationError: 스키마 버전 불일치, 미지의 키, ``preset_id`` 불일치,
+            측정일 형태 오류, 빈 ``operations`` · 빈 ``response_schema``,
+            타입 불일치, 문자열의 인증키 대입.
+    """
+    doc = _expect_mapping(document, path="sampled")
+    version = doc.get("mcportal_sampled")
+    if not _is_schema_version(version, SAMPLED_SCHEMA_VERSION):
+        raise CurationError(
+            f"지원하지 않는 실측 스키마 문서 버전입니다: {version!r} "
+            f"(받은 타입: {type(version).__name__}). "
+            f"현재 지원 버전은 정수 {SAMPLED_SCHEMA_VERSION} 입니다"
+            f'(문서 최상위에 {{"mcportal_sampled": {SAMPLED_SCHEMA_VERSION}}} 이 '
+            "필요합니다)."
+        )
+    _reject_unknown_keys(doc, _SAMPLED_TOP_KEYS, path="sampled")
+
+    document_preset_id = _expect_text(doc.get("preset_id"), path="sampled.preset_id")
+    assert document_preset_id is not None
+    if preset_id is not None and document_preset_id != preset_id:
+        raise CurationError(
+            f"프리셋 식별자가 어긋납니다. 번들: {preset_id!r}, "
+            f"{PRESET_SAMPLED_FILENAME}.preset_id: {document_preset_id!r}. "
+            "다른 데이터셋에서 측정한 스키마가 섞이면 산출물이 통째로 거짓이 "
+            "되므로 중단합니다."
+        )
+
+    sampled_on = _expect_text(doc.get("sampled_on"), path="sampled.sampled_on")
+    assert sampled_on is not None
+    if not _SAMPLED_ON_RE.match(sampled_on):
+        raise CurationError(
+            f"sampled.sampled_on 표기가 올바르지 않습니다: {sampled_on!r}. "
+            "'YYYY-MM-DD'(KST 날짜)여야 합니다. 시각·타임존은 적지 않습니다 — "
+            "측정 시각은 산출물에 필요하지 않고 측정자의 생활 시간대를 드러냅니다."
+        )
+    try:
+        date.fromisoformat(sampled_on)
+    except ValueError as exc:
+        raise CurationError(
+            f"sampled.sampled_on 이 실재하는 날짜가 아닙니다: {sampled_on!r}."
+        ) from exc
+
+    provenance = _load_sampled_provenance(
+        doc.get("provenance"), path="sampled.provenance"
+    )
+
+    operations_map = _expect_mapping(doc.get("operations"), path="sampled.operations")
+    if not operations_map:
+        raise CurationError(
+            "sampled.operations 가 비어 있습니다. 채운 오퍼레이션이 하나도 없으면 "
+            f"{PRESET_SAMPLED_FILENAME} 자체를 두지 마세요 — 빈 측정층은 산출물을 "
+            "'sampled' 로 라벨링하면서 실제로는 아무것도 측정하지 않았다고 말합니다."
+        )
+    operations: dict[str, SampledOperation] = {}
+    for operation_id in sorted(str(key) for key in operations_map.keys()):
+        if not _OPERATION_ID_RE.match(operation_id):
+            raise CurationError(
+                f"sampled.operations 의 키가 ASCII 식별자 규칙을 만족하지 "
+                f"않습니다: {operation_id!r} (불변식 I1)."
+            )
+        operations[operation_id] = _load_sampled_operation(
+            operations_map[operation_id], path=f"sampled.operations.{operation_id}"
+        )
+
+    _gate_sampled_document(doc)
+    return SampledSchemas(
+        preset_id=document_preset_id,
+        sampled_on=sampled_on,
+        provenance=provenance,
+        operations=operations,
+    )
+
+
+def read_sampled_schemas(
+    path: PathLike, *, preset_id: str | None = None
+) -> SampledSchemas:
+    """``sampled_schemas.json`` 파일을 읽어 :class:`SampledSchemas` 로 돌려준다.
+
+    Args:
+        path: 실측 스키마 문서 경로.
+        preset_id: 대조할 프리셋 식별자.
+
+    Returns:
+        검증을 통과한 :class:`SampledSchemas`.
+
+    Raises:
+        CurationError: JSON 파손 또는 스키마 위반.
+        OSError: 파일을 읽을 수 없을 때(부재 포함).
+    """
+    file_path = Path(path)
+    return load_sampled_schemas(
+        _read_json(file_path, what="실측 스키마 문서"), preset_id=preset_id
+    )
+
+
+def _sampled_document(
+    preset_id: str,
+    schemas: Mapping[str, Mapping[str, Any]],
+    reports: Mapping[str, Any],
+    *,
+    sampled_on: str,
+    cassette: str | None,
+    cassette_sha256: str | None,
+    call_count: int,
+) -> dict[str, Any]:
+    """영속화할 문서를 조립한다(순회는 전부 ``sorted()`` — 결정론)."""
+    operations: dict[str, Any] = {}
+    total_samples = 0
+    for operation_id in sorted(schemas):
+        report = reports[operation_id]
+        sample_count = int(report.sample_count)
+        total_samples += sample_count
+        operations[operation_id] = {
+            "response_schema": dict(schemas[operation_id]),
+            "inference": {
+                "sample_count": sample_count,
+                "conflicts": len(report.conflicts),
+                "truncated": bool(report.truncated),
+            },
+        }
+    return {
+        "mcportal_sampled": SAMPLED_SCHEMA_VERSION,
+        "preset_id": preset_id,
+        "sampled_on": sampled_on,
+        "provenance": {
+            "cassette": cassette,
+            "cassette_sha256": cassette_sha256,
+            "sample_count": total_samples,
+            "call_count": int(call_count),
+        },
+        "operations": operations,
+    }
+
+
+def _cassette_provenance(
+    directory: Path, cassette_path: PathLike | None
+) -> tuple[str | None, str | None]:
+    """카세트의 **상대 경로**와 지문을 만든다.
+
+    절대 경로는 적지 않는다 — 커밋 대상 파일에 측정자의 홈 디렉터리 이름을
+    남기지 않기 위해서다. 번들 밖 카세트는 파일명만 적는다.
+    """
+    if cassette_path is None:
+        return None, None
+    target = Path(cassette_path)
+    try:
+        relative = target.resolve().relative_to(directory.resolve()).as_posix()
+    except (OSError, ValueError):
+        relative = target.name
+    digest: str | None = None
+    if target.is_file():
+        digest = "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest()
+    return relative, digest
+
+
+def _gate_sampled_document(document: Mapping[str, Any]) -> None:
+    """기록 직전 문서 전체에서 인증키 대입을 찾는다(V7 과 같은 게이트).
+
+    응답 본문이 요청 인증키를 되비추는 사례가 있어 **추론 스키마의 예시·설명
+    문자열**로도 키가 흘러들 수 있다. 카세트·샘플 파일과 별개로 여기서도 막는다.
+    """
+    for field_path, text in _iter_strings(document, path="sampled"):
+        found = find_key_assignments(text, _CURATION_KEY_PARAMS)
+        if found:
+            raise CurationError(
+                f"실측 스키마 문서에 인증키 대입이 있습니다"
+                f"(탐지된 파라미터: {', '.join(found)}, 검사한 필드 경로: "
+                f"{field_path}). 이 파일은 커밋 대상이므로 자격증명이 실린 채로 "
+                "저장할 수 없습니다. 시크릿 스크러빙을 거친 표본으로 다시 "
+                "추론하세요."
+            )
+
+
+def write_sampled_schemas(
+    directory: PathLike,
+    schemas: Mapping[str, Mapping[str, Any]],
+    reports: Mapping[str, Any],
+    *,
+    preset_id: str,
+    sampled_on: str | None = None,
+    cassette_path: PathLike | None = None,
+    call_count: int = 0,
+) -> Path:
+    """실측 스키마를 번들의 ``sampled_schemas.json`` 에 기록한다.
+
+    기록 전에 ① 문서를 조립하고 ② :func:`load_sampled_schemas` 로 **자기 자신을
+    다시 읽어** 스키마 검증을 통과시키고 ③ 인증키 게이트를 지난다. 읽을 수 없는
+    파일을 쓰는 경로를 남기지 않기 위해서다.
+
+    Args:
+        directory: 프리셋 번들 디렉터리.
+        schemas: ``operation_id`` → 추론 응답 스키마.
+        reports: ``operation_id`` → 추론 리포트(``sample_count`` · ``conflicts`` ·
+            ``truncated`` 를 읽는다).
+        preset_id: 번들 식별자.
+        sampled_on: 측정일(생략하면 오늘 KST 날짜).
+        cassette_path: 녹화 카세트 경로(있으면 상대 경로·sha256 을 남긴다).
+        call_count: 이 측정에서 나간 상위 호출 총합.
+
+    Returns:
+        기록한 파일 경로.
+
+    Raises:
+        CurationError: 채울 스키마가 없거나, 리포트가 빠졌거나, 조립한 문서가
+            스키마 검증·인증키 게이트를 통과하지 못할 때.
+    """
+    base = Path(directory)
+    if not schemas:
+        raise CurationError(
+            "영속화할 실측 스키마가 없습니다. 정상 응답이 0건이면 산출물을 "
+            "'sampled' 로 라벨링하지 않습니다."
+        )
+    missing = sorted(set(schemas) - set(reports))
+    if missing:
+        raise CurationError(
+            f"추론 리포트가 없는 오퍼레이션이 있습니다: {', '.join(missing)}. "
+            "스키마와 리포트는 같은 추론 1회의 두 산출물이므로 짝이 맞아야 합니다."
+        )
+    cassette, digest = _cassette_provenance(base, cassette_path)
+    document = _sampled_document(
+        preset_id,
+        schemas,
+        reports,
+        sampled_on=sampled_on or datetime.now(_KST).date().isoformat(),
+        cassette=cassette,
+        cassette_sha256=digest,
+        call_count=call_count,
+    )
+    load_sampled_schemas(document, preset_id=preset_id)
+    _gate_sampled_document(document)
+
+    target = base / PRESET_SAMPLED_FILENAME
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(dumps(document))
+    return target
+
+
 @dataclass(frozen=True)
 class _Bundle:
     """프리셋 번들 1건을 읽어 들인 결과(내부용)."""
@@ -1339,6 +1879,8 @@ class _Bundle:
     source: SourceSpec
     curation: Curation | None
     report: CurationReport | None
+    sampled_path: Path | None = None
+    sampled: SampledSchemas | None = None
 
 
 def _load_bundle(directory: PathLike, *, curated: bool) -> _Bundle:
@@ -1370,6 +1912,24 @@ def _load_bundle(directory: PathLike, *, curated: bool) -> _Bundle:
         if curated:
             spec, report = apply_curation_with_report(spec, curation)
 
+    sampled_candidate = base / PRESET_SAMPLED_FILENAME
+    sampled_path: Path | None = sampled_candidate if sampled_candidate.is_file() else None
+    sampled: SampledSchemas | None = None
+    if sampled_path is not None:
+        # 적용 여부(curated)와 무관하게 **읽고 검증한다**. 비교군 경로에서만 통과하는
+        # 깨진 측정층을 남기지 않기 위해서다.
+        sampled = read_sampled_schemas(sampled_path, preset_id=preset_id)
+        known = {operation.operation_id for operation in spec.operations}
+        unknown = sorted(set(sampled.operations) - known)
+        if unknown:
+            available = ", ".join(sorted(known)) or "(없음)"
+            raise CurationError(
+                f"{PRESET_SAMPLED_FILENAME} 이 소스에 없는 오퍼레이션을 채우고 "
+                f"있습니다: {', '.join(unknown)}. 소스가 실제로 가진 "
+                f"operation_id: {available}. 그대로 두면 그 항목은 조용히 버려져 "
+                "'측정했다'는 기록만 남습니다."
+            )
+
     return _Bundle(
         directory=base,
         source_path=source_path,
@@ -1379,7 +1939,33 @@ def _load_bundle(directory: PathLike, *, curated: bool) -> _Bundle:
         source=spec,
         curation=curation,
         report=report,
+        sampled_path=sampled_path,
+        sampled=sampled,
     )
+
+
+def _sampled_layer(
+    bundle: _Bundle, *, curated: bool
+) -> tuple[dict[str, Mapping[str, Any]], dict[str, SampledInference]]:
+    """번들의 측정층을 ``build_openapi`` 인자 두 개로 편다.
+
+    주입 순서는 **소스 → 큐레이션(강등 포함) → 측정**이다. ``build_openapi`` 가
+    ``response_schemas`` 를 최우선으로 보므로 실측이 마지막에 이긴다 — 큐레이션의
+    ``response.unresolved`` 강등이 한 말은 "소스 선언을 믿지 마라"였고, 실측
+    표본이 바로 그 물음의 답이기 때문이다.
+
+    ``curated=False`` (벤치마크 비교군)에서는 측정층을 얹지 않는다. 그 경로의
+    정의가 "자동생성 단독"이고, 실측 스키마는 자동생성 산물이 아니다.
+    """
+    if not curated or bundle.sampled is None:
+        return {}, {}
+    schemas: dict[str, Mapping[str, Any]] = {}
+    reports: dict[str, SampledInference] = {}
+    for operation_id in sorted(bundle.sampled.operations):
+        entry = bundle.sampled.operations[operation_id]
+        schemas[operation_id] = entry.response_schema
+        reports[operation_id] = entry.inference
+    return schemas, reports
 
 
 def _bundle_options(bundle: _Bundle, *, curated: bool) -> CompileOptions:
@@ -1387,18 +1973,23 @@ def _bundle_options(bundle: _Bundle, *, curated: bool) -> CompileOptions:
 
     큐레이션을 적용하지 않는 비교군(``curated=False``)에서는 제목·버전도
     자동생성 값을 쓴다 — 그래야 "큐레이션 유무" 하나만 달라진 A/B 가 된다.
+
+    ``generation_mode`` 는 측정층 유무가 정한다. 번들에 실측 스키마가 있으면
+    산출물은 라이브 표본에 근거한 것이므로 ``"sampled"`` 다 — 그 사실은 키가 없는
+    사람이 다시 컴파일해도 변하지 않는다(근거가 파일로 남아 있으므로).
     """
+    mode = "sampled" if curated and bundle.sampled is not None else "offline"
     if curated and bundle.curation is not None:
         service = bundle.curation.service
         return CompileOptions(
             title=service.title or bundle.source.service_name,
             version=service.version,
-            generation_mode="offline",
+            generation_mode=mode,
         )
     return CompileOptions(
         title=bundle.source.service_name,
         version=ServiceCuration.version,
-        generation_mode="offline",
+        generation_mode=mode,
     )
 
 
@@ -1433,6 +2024,11 @@ def preset_info(directory: PathLike) -> PresetInfo:
     """
     bundle = _load_bundle(directory, curated=True)
     service = bundle.curation.service if bundle.curation is not None else None
+    unresolved = unresolved_schema_operations(bundle.source)
+    sampled_ids = set(bundle.sampled.operations) if bundle.sampled is not None else set()
+    remaining = tuple(
+        operation_id for operation_id in unresolved if operation_id not in sampled_ids
+    )
     return PresetInfo(
         preset_id=bundle.preset_id,
         service_id=bundle.source.service_id,
@@ -1448,9 +2044,11 @@ def preset_info(directory: PathLike) -> PresetInfo:
         curation_path=bundle.curation_path,
         openapi_path=bundle.openapi_path,
         operation_count=len(bundle.source.operations),
-        unresolved_count=len(unresolved_schema_operations(bundle.source)),
+        unresolved_count=len(remaining),
         license_note=bundle.source.license_note,
         notes=service.notes if service is not None else (),
+        sampled_path=bundle.sampled_path,
+        resolved_by_sampling=len(unresolved) - len(remaining),
     )
 
 
@@ -1539,9 +2137,13 @@ def compile_preset(
 ) -> CompiledSpec:
     """프리셋 번들을 OpenAPI 3.1 문서로 컴파일한다.
 
+    번들에 ``sampled_schemas.json`` 이 있으면 실측 응답 스키마를 마지막 층으로
+    얹는다(:func:`_sampled_layer`). 네트워크는 어느 경로에서도 쓰지 않는다 —
+    측정 결과가 파일로 남아 있으므로 키 없이도 같은 문서가 나온다.
+
     Args:
         directory: 번들 디렉터리.
-        curated: False면 큐레이션을 적용하지 않는다(벤치마크 비교군).
+        curated: False면 큐레이션도 측정층도 적용하지 않는다(벤치마크 비교군).
         options: 컴파일 옵션. ``None`` 이면 큐레이션의 제목·버전으로 만든다.
 
     Returns:
@@ -1553,7 +2155,13 @@ def compile_preset(
     """
     bundle = _load_bundle(directory, curated=curated)
     resolved = options if options is not None else _bundle_options(bundle, curated=curated)
-    return build_openapi(bundle.source, options=resolved)
+    schemas, reports = _sampled_layer(bundle, curated=curated)
+    return build_openapi(
+        bundle.source,
+        schemas or None,
+        options=resolved,
+        reports=reports or None,
+    )
 
 
 def write_preset(
@@ -1594,3 +2202,271 @@ def check_preset(directory: PathLike) -> bool:
         return False
     expected = dumps(compile_preset(directory).document).encode("utf-8")
     return target.read_bytes() == expected
+
+
+# ---------------------------------------------------------------------------
+# 실키 샘플링 글루(W4 §3-2)
+# ---------------------------------------------------------------------------
+def _sampling_targets(source: SourceSpec) -> tuple[str, ...]:
+    """샘플링해야 할 미확정 응답 스키마 오퍼레이션들을 고른다.
+
+    판정 기준은 **큐레이션을 적용한 소스**다. 게이트웨이 스웨거 2종은 원 문서가
+    응답 스키마를 주긴 하지만 사람이 확인한 결과 그 선언이 실제 응답과 다르다는
+    것이 밝혀져 ``curation.json`` 의 ``response.unresolved`` 로 강등돼 있다. 원
+    소스(``curated=False``) 기준으로 고르면 그 2종이 대상에서 빠져 "미확정 10건"
+    중 2건이 영원히 채워지지 않는다.
+
+    Args:
+        source: 큐레이션이 적용된 :class:`SourceSpec`.
+
+    Returns:
+        ``operation_id`` 오름차순 튜플.
+    """
+    return unresolved_schema_operations(source)
+
+
+def _operation_summary(
+    operation_id: str,
+    results: Sequence["SampleResult"],
+    report: Any | None,
+) -> PresetOperationSample:
+    """오퍼레이션 1건의 샘플 결과·추론 리포트를 값 없는 요약으로 접는다."""
+    ok = sum(1 for result in results if result.ok)
+    return PresetOperationSample(
+        operation_id=operation_id,
+        calls=len(results),
+        ok=ok,
+        failed=len(results) - ok,
+        status_codes=tuple(sorted({int(result.status_code) for result in results})),
+        result_codes=tuple(
+            sorted(
+                {
+                    str(result.result_code)
+                    for result in results
+                    if result.result_code is not None
+                }
+            )
+        ),
+        schema_inferred=report is not None,
+        sample_count=int(getattr(report, "sample_count", 0) or 0),
+        property_count=int(getattr(report, "property_count", 0) or 0),
+        max_depth=int(getattr(report, "max_depth_seen", 0) or 0),
+        truncated=bool(getattr(report, "truncated", False)),
+        conflicts=len(getattr(report, "conflicts", ()) or ()),
+    )
+
+
+def apply_sampled_schemas(
+    directory: PathLike,
+    results: Mapping[str, Sequence["SampleResult"]],
+    *,
+    cassette_path: PathLike | None = None,
+    sampled_on: str | None = None,
+) -> Path:
+    """샘플 결과에서 응답 스키마를 추론해 번들에 **영속화**하고 산출물을 갱신한다.
+
+    :func:`~mcportal.compiler.sampler.infer_response_schemas` →
+    :func:`write_sampled_schemas` → :func:`write_preset` 순서다. 마지막 단계가
+    핵심이다 — 산출물은 방금 쓴 ``sampled_schemas.json`` 을 읽는 **오프라인
+    경로로** 만든다. 산출 경로가 하나뿐이면 "라이브에서 만든 문서"와 "키 없이
+    재컴파일한 문서"가 갈라질 자리가 원천적으로 없다. 그래서 이 함수를 쓴 뒤에도
+    ``mcportal compile --check`` 는 일치를 보고한다.
+
+    번들은 다시 읽으므로 이 함수만 따로 불러도 동작한다(샘플링과 산출을 분리해
+    두면 같은 카세트로 재현 산출이 가능하다).
+
+    Args:
+        directory: 프리셋 번들 디렉터리.
+        results: ``operation_id`` → 샘플 결과들
+            (:func:`~mcportal.compiler.sampler.sample_source` 의 반환값).
+        cassette_path: 녹화 카세트 경로(측정 출처로 남긴다).
+        sampled_on: 측정일(생략하면 오늘 KST 날짜).
+
+    Returns:
+        기록한 ``openapi.json`` 경로.
+
+    Raises:
+        CurationError: 번들을 읽을 수 없거나, 정상 응답이 0건이라 채울 스키마가
+            없거나, 소스에 없는 오퍼레이션을 채우려 하거나, 이번 측정이 이미
+            영속화된 실측을 지우게 될 때(부분 실패 덮어쓰기 방지).
+        CompileError: 산출·저장 게이트에 걸렸을 때(인증키 잔존 포함).
+    """
+    # 지연 임포트: 샘플러는 httpx·트랜스포트·쿼터 계층을 끌어온다. 큐레이션 모듈은
+    # `mcportal presets` 같은 순수 오프라인 경로에서도 임포트되므로, 라이브 샘플링을
+    # 실제로 쓰는 함수 안에서만 끌어와 오프라인 경로의 임포트 비용을 0으로 둔다.
+    from .sampler import infer_response_schemas
+
+    bundle = _load_bundle(directory, curated=True)
+    schemas, reports = infer_response_schemas(results)
+    if not schemas:
+        raise CurationError(
+            "표본에서 확정한 응답 스키마가 없습니다(정상 응답 0건). 채울 것이 "
+            "없는데 산출물을 다시 쓰면 'sampled' 라벨만 붙은 거짓 기록이 됩니다."
+        )
+    known = {operation.operation_id for operation in bundle.source.operations}
+    unknown = sorted(set(schemas) - known)
+    if unknown:
+        available = ", ".join(sorted(known)) or "(없음)"
+        raise CurationError(
+            f"샘플 결과가 소스에 없는 오퍼레이션을 담고 있습니다: "
+            f"{', '.join(unknown)}. 소스가 실제로 가진 operation_id: {available}."
+        )
+
+    # 측정 파일은 **측정 1회**를 통째로 서술한다(한 날짜·한 카세트). 그래서 새
+    # 측정은 이전 파일을 덮어쓰는데, 재실행에서 일부 오퍼레이션만 실패하면 지난번에
+    # 확정한 스키마가 조용히 사라지고 산출물이 폴백으로 되돌아간다 — 보고서에는
+    # "N건 확정"만 남아 성공처럼 보인다. 그 조용한 손실을 여기서 접는다.
+    if bundle.sampled is not None:
+        lost = sorted(set(bundle.sampled.operations) - set(schemas))
+        if lost:
+            raise CurationError(
+                f"이번 측정은 이미 확정된 스키마 {len(lost)}건을 지웁니다: "
+                f"{', '.join(lost)}. 그 오퍼레이션들이 이번에 정상 응답을 하나도 "
+                f"주지 않았습니다. {PRESET_SAMPLED_FILENAME} 은 측정 1회를 통째로 "
+                "서술하므로 부분 실패를 덮어쓰면 지난 측정이 사라집니다. 실패 원인을 "
+                "해결해 같은 대상을 다시 채우거나, 처음부터 다시 측정할 생각이라면 "
+                f"{PRESET_SAMPLED_FILENAME} 을 지우고 실행하세요."
+            )
+
+    write_sampled_schemas(
+        bundle.directory,
+        schemas,
+        reports,
+        preset_id=bundle.preset_id,
+        sampled_on=sampled_on,
+        cassette_path=cassette_path,
+        call_count=sum(len(tuple(results[operation_id])) for operation_id in results),
+    )
+    return write_preset(bundle.directory)
+
+
+def sample_preset(
+    directory: PathLike,
+    *,
+    service_key: str,
+    count: int = 3,
+    budget: int | None = None,
+    ledger_path: PathLike | None = None,
+    cassette_dir: PathLike | None = None,
+    samples_dir: PathLike | None = None,
+    overrides: Mapping[str, str] | None = None,
+    profile: "ProviderProfile | None" = None,
+    apply_schemas: bool = True,
+) -> PresetSampleReport:
+    """프리셋 번들의 **미확정 응답 스키마만** 실키 샘플링으로 채운다(W4 §3-2).
+
+    경로는 다음 순서로 고정돼 있다.
+
+    1. :func:`load_preset` (``curated=True``) — 큐레이션 적용 소스를 얻는다.
+    2. :func:`_sampling_targets` — 미확정 오퍼레이션만 고른다(전수 호출 금지).
+    3. :func:`~mcportal.compiler.sampler.sample_source` (``mode="record"``) —
+       쿼터가드 경유·카세트 녹화·스크러빙이 구조적으로 강제된다.
+    4. :func:`~mcportal.compiler.sampler.write_samples` — 인증키를 시크릿으로
+       **명시**해 샘플 페이로드를 저장한다(응답이 키를 되비추는 사례 방어).
+    5. :func:`apply_sampled_schemas` — 추론 → ``sampled_schemas.json`` 영속화 →
+       그 파일을 읽는 오프라인 경로로 ``openapi.json`` 재생성.
+
+    대상이 0건이면 **네트워크에 나가지 않는다**. 호출 0회 보고서를 그대로 돌려
+    주므로, 이미 전부 확정된 프리셋에 예산을 태우는 경로가 없다.
+
+    쿼터 소진(:class:`~mcportal.quota.QuotaExhausted`)은 잡지 않고 전파한다 —
+    예산이 끝났다는 사실은 호출자가 반드시 알아야 하는 사건이다.
+
+    Args:
+        directory: 프리셋 번들 디렉터리.
+        service_key: data.go.kr 인증키. **키워드 필수**이며 어떤 산출물에도
+            평문으로 남지 않는다(카세트·샘플 양쪽에서 스크러빙된다).
+        count: 오퍼레이션당 샘플 수(1 이상 하드캡 이하).
+        budget: 일일 예산 상한(``None`` 이면 환경변수 → 프로파일 기본값).
+        ledger_path: 사용량 원장 경로. 실호출 경로이므로 기록은 정상 동작이다.
+        cassette_dir: 카세트 디렉터리. 생략하면 ``<번들>/cassettes``.
+        samples_dir: 샘플 디렉터리. 생략하면 ``<번들>/samples``.
+        overrides: 필수 파라미터의 강제 값(이름 → 값).
+        profile: 프로바이더 프로파일(``None`` 이면 data.go.kr 정본).
+        apply_schemas: False 면 ``openapi.json`` 을 갱신하지 않는다(측정만 하고
+            산출은 사람이 결정하는 운용을 위해 둔다).
+
+    Returns:
+        :class:`PresetSampleReport` — 값이 아니라 **수치만** 담은 요약.
+
+    Raises:
+        CurationError: 번들을 읽을 수 없을 때.
+        SamplingError: 인증키가 없거나 필수 파라미터 값을 정할 수 없을 때.
+        QuotaExhausted: 일일 예산이 소진됐을 때(삼키지 않는다).
+    """
+    from ..profiles import DATA_GO_KR
+    from ..runtime.keys import prepare_service_key
+    from .sampler import infer_response_schemas, sample_source, write_samples
+
+    bundle = _load_bundle(directory, curated=True)
+    base = bundle.directory
+    cassette_root = Path(cassette_dir) if cassette_dir else base / PRESET_CASSETTE_DIRNAME
+    samples_root = Path(samples_dir) if samples_dir else base / PRESET_SAMPLES_DIRNAME
+    cassette_path = cassette_root / f"{bundle.preset_id}.json"
+    targets = _sampling_targets(bundle.source)
+
+    if not targets:
+        return PresetSampleReport(
+            preset_id=bundle.preset_id,
+            directory=base,
+            target_operations=(),
+            call_count=0,
+            ok_count=0,
+            failed_count=0,
+            operations=(),
+            resolved_operations=(),
+            cassette_path=cassette_path,
+            samples_dir=samples_root,
+        )
+
+    cassette_root.mkdir(parents=True, exist_ok=True)
+    samples_root.mkdir(parents=True, exist_ok=True)
+
+    results = sample_source(
+        bundle.source,
+        service_key=service_key,
+        count=count,
+        mode="record",
+        cassette_path=cassette_path,
+        budget=budget,
+        ledger_path=ledger_path,
+        profile=profile if profile is not None else DATA_GO_KR,
+        operation_ids=targets,
+        overrides=overrides,
+    )
+
+    # 시크릿은 입력 원문과 준비된(디코딩) 키 둘 다다. 전송에 실제로 쓰이는 것은
+    # 준비된 키지만, 응답이 인코딩키 형태를 되비추는 사례가 있어 양쪽을 넘긴다.
+    secrets = [
+        secret
+        for secret in dict.fromkeys([service_key, prepare_service_key(service_key)])
+        if secret
+    ]
+    sample_paths = write_samples(results, samples_root, secrets=secrets)
+
+    _schemas, reports = infer_response_schemas(results)
+    operations = tuple(
+        _operation_summary(operation_id, results.get(operation_id, ()), reports.get(operation_id))
+        for operation_id in sorted(results)
+    )
+    openapi_path: Path | None = None
+    sampled_path: Path | None = None
+    if apply_schemas and reports:
+        openapi_path = apply_sampled_schemas(base, results, cassette_path=cassette_path)
+        sampled_path = base / PRESET_SAMPLED_FILENAME
+
+    return PresetSampleReport(
+        preset_id=bundle.preset_id,
+        directory=base,
+        target_operations=tuple(targets),
+        call_count=sum(summary.calls for summary in operations),
+        ok_count=sum(summary.ok for summary in operations),
+        failed_count=sum(summary.failed for summary in operations),
+        operations=operations,
+        resolved_operations=tuple(sorted(reports)),
+        cassette_path=cassette_path,
+        samples_dir=samples_root,
+        sample_paths=tuple(sample_paths),
+        openapi_path=openapi_path,
+        sampled_path=sampled_path,
+    )

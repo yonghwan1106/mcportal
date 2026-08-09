@@ -305,14 +305,25 @@ def harvest_key_values(
     url: str,
     params: Mapping[str, object] | None = None,
     key_params: Sequence[str] = DEFAULT_KEY_PARAMS,
+    *,
+    headers: Mapping[str, object] | None = None,
 ) -> tuple[str, ...]:
-    """URL 쿼리와 파라미터 매핑에서 **이름으로 식별한** 인증키 값을 수확한다.
+    """URL 쿼리·파라미터 매핑·요청 헤더에서 **이름으로 식별한** 인증키 값을 수확한다.
 
     :func:`scrub_url` · :func:`scrub_params` 는 이름 기준으로 값을 지우지만,
     응답 본문은 값 기준(:func:`scrub_text`)으로만 지운다. 호출자가 직접 실은
     키나 프로파일 별칭으로 선언한 키는 클라이언트가 보관한 시크릿 목록에
     없으므로, 이름으로 식별한 값을 값 기반 스크러빙 대상에 합류시켜야 본문
     에코까지 덮인다.
+
+    ``headers`` 축은 F-08(인증키 헤더 주입)이 열었다. 헤더로 실린 키는 URL 에도
+    params 에도 없으므로 이름 기반 수확이 없으면 **값 기반 스크러빙 목록에 아예
+    오르지 못한다**. 그 상태에서 응답 본문이 인증키를 되비추면(실제 사례가 있다)
+    평문이 그대로 카세트·샘플 파일에 남는다. 카세트가 요청 헤더를 기록하지
+    않는다는 사실은 "헤더 값이 새지 않는다"를 URL/params 축에서만 보장하므로,
+    본문 에코 축은 여기서 막아야 한다.
+
+    헤더 이름은 HTTP 규약대로 대소문자를 무시해 비교한다.
 
     수확 값은 URL 원문 표기와 그 디코딩 표기(``unquote`` · ``unquote_plus``)를
     모두 담는다. 어느 쪽으로 되비쳐 와도 :func:`scrub_text` 가 잡게 하기 위함이다.
@@ -321,6 +332,8 @@ def harvest_key_values(
         url: 요청 URL(쿼리 포함 가능).
         params: 명시 파라미터 매핑(없어도 된다).
         key_params: 인증키로 간주할 파라미터 이름들(빈 시퀀스면 기본값 폴백).
+        headers: 요청 헤더 매핑(없어도 된다). 키워드 전용 인자라 기존 위치 인자
+            호출부는 전부 그대로 동작한다.
 
     Returns:
         중복이 제거된 시크릿 후보 값 튜플(결정론적으로 정렬된다).
@@ -333,6 +346,10 @@ def harvest_key_values(
         collected.add(match.group(2))
 
     for key, value in dict(params or {}).items():
+        if str(key).lower() in lowered:
+            collected.add(str(value))
+
+    for key, value in dict(headers or {}).items():
         if str(key).lower() in lowered:
             collected.add(str(value))
 

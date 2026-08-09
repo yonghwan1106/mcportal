@@ -479,3 +479,151 @@ def test_f10_profile_key_param_propagates_to_cassette(tmp_path: Path) -> None:
         played = replay_client.get(BASE, params={"pageNo": "1"})
     assert played.status_code == 200
     assert played.json() == {"response": {"header": {"resultCode": "00"}}}
+
+
+# ---------------------------------------------------------------------------
+# F-08 - 인증키 주입 위치(key_location)
+# ---------------------------------------------------------------------------
+HEADER_KEY_PROFILE = ProviderProfile(
+    name="가상헤더포털",
+    key_param="X-Synth-Auth",
+    host_suffixes=("apis.data.go.kr",),
+    default_daily_budget=100,
+    multi_key_supported=False,
+    guidance_exhausted="",
+    refusal_multikey="",
+    key_location="header",
+)
+
+
+def test_default_profile_keeps_query_injection() -> None:
+    """기본 프로파일의 주입 위치는 질의문자열이다(기존 동작 고정)."""
+    from mcportal.profiles import DATA_GO_KR
+
+    assert DATA_GO_KR.key_location == "query"
+
+
+def test_profile_rejects_unknown_key_location() -> None:
+    """오타 난 위치는 생성 시점에 막는다(조용한 질의문자열 폴백 금지)."""
+    with pytest.raises(ValueError, match="key_location"):
+        ProviderProfile(
+            name="가상포털",
+            key_param="apiKey",
+            host_suffixes=(),
+            default_daily_budget=1,
+            multi_key_supported=False,
+            guidance_exhausted="",
+            refusal_multikey="",
+            key_location="headers",
+        )
+
+
+@respx.mock
+def test_header_key_location_injects_header_not_query() -> None:
+    """``key_location="header"`` 면 키가 헤더로 나가고 URL 에는 남지 않는다."""
+    respx.get(BASE).mock(return_value=httpx.Response(200, json={"ok": True}))
+    transport = MCPortalTransport(
+        ENCODED_KEY, inner=httpx.HTTPTransport(), profile=HEADER_KEY_PROFILE
+    )
+    with _client(transport) as client:
+        assert client.get(BASE, params={"pageNo": "1"}).status_code == 200
+
+    sent = respx.calls.last.request
+    # 헤더는 아무도 인코딩하지 않으므로 '준비된(디코딩) 키' 원문이 그대로 실린다.
+    assert sent.headers["X-Synth-Auth"] == DECODED_KEY
+    assert "X-Synth-Auth" not in sent.url.params
+    assert "serviceKey" not in str(sent.url)
+    for variant in (DECODED_KEY, ENCODED_KEY, quote_plus(DECODED_KEY)):
+        assert variant not in str(sent.url), f"URL 에 키 변형이 남았다: {variant}"
+
+
+@respx.mock
+def test_header_key_location_does_not_overwrite_caller_header() -> None:
+    """호출자가 이미 실은 인증 헤더는 덮어쓰지 않는다."""
+    respx.get(BASE).mock(return_value=httpx.Response(200, json={"ok": True}))
+    transport = MCPortalTransport(
+        DECODED_KEY, inner=httpx.HTTPTransport(), profile=HEADER_KEY_PROFILE
+    )
+    with _client(transport) as client:
+        client.get(BASE, headers={"x-synth-auth": "caller-supplied"})
+    assert respx.calls.last.request.headers["X-Synth-Auth"] == "caller-supplied"
+
+
+@respx.mock
+def test_header_key_never_reaches_the_cassette(tmp_path: Path) -> None:
+    """헤더로 실린 인증키는 카세트에 남지 않는다.
+
+    카세트는 요청의 method·url·params·body 만 기록하고 **요청 헤더는 기록하지
+    않는다**(:mod:`mcportal.replay.cassette`). 그 사실이 헤더 주입 경로의 유출
+    방어선이므로, 구현이 언젠가 요청 헤더를 기록하기 시작하면 여기서 걸린다.
+    """
+    respx.get(BASE).mock(
+        return_value=httpx.Response(200, json={"response": {"header": {"resultCode": "00"}}})
+    )
+    cassette_path = tmp_path / "header.json"
+    client = create_client(
+        DECODED_KEY,
+        ledger_path=tmp_path / "ledger.db",
+        mode="record",
+        cassette_path=cassette_path,
+        profile=HEADER_KEY_PROFILE,
+    )
+    with client:
+        assert client.get(BASE, params={"pageNo": "1"}).status_code == 200
+
+    # 헤더로는 실제로 나갔다.
+    assert respx.calls.last.request.headers["X-Synth-Auth"] == DECODED_KEY
+
+    raw = cassette_path.read_text(encoding="utf-8")
+    for variant in (
+        DECODED_KEY,
+        ENCODED_KEY,
+        quote(DECODED_KEY),
+        quote(DECODED_KEY, safe=""),
+        quote_plus(DECODED_KEY),
+    ):
+        assert variant not in raw, f"카세트에 키 변형이 남았다: {variant}"
+    interaction = json.loads(raw)["interactions"][0]
+    assert "headers" not in interaction["request"]
+
+
+def test_harvest_key_values_reads_headers() -> None:
+    """이름으로 식별한 **헤더** 값도 값 기반 스크러빙 목록에 합류한다.
+
+    헤더로 실린 키는 URL·params 어디에도 없으므로, 이 수확이 없으면 응답 본문이
+    키를 되비출 때(실제 사례가 있다) 평문이 그대로 남는다.
+    """
+    from mcportal.replay.scrub import harvest_key_values, scrub_text
+
+    harvested = harvest_key_values(
+        BASE, None, ("X-Synth-Auth",), headers={"x-synth-auth": DECODED_KEY}
+    )
+    assert DECODED_KEY in harvested
+    echoed = f'{{"echo": "{DECODED_KEY}"}}'
+    assert DECODED_KEY not in scrub_text(echoed, harvested)
+
+
+def test_harvest_key_values_without_headers_is_unchanged() -> None:
+    """헤더 인자를 생략한 기존 호출부의 결과는 그대로다(키워드 전용 추가)."""
+    from mcportal.replay.scrub import harvest_key_values
+
+    url = f"{BASE}?serviceKey={ENCODED_KEY}&pageNo=1"
+    assert harvest_key_values(url) == harvest_key_values(url, None, ("serviceKey",))
+
+
+def test_inject_service_key_header_normalizes_and_preserves() -> None:
+    """헤더 주입 헬퍼는 인코딩키를 정규화하고 기존 헤더를 덮어쓰지 않는다."""
+    from mcportal.runtime.keys import inject_service_key, inject_service_key_header
+
+    injected = inject_service_key_header(None, ENCODED_KEY, header_name="X-Synth-Auth")
+    assert injected == {"X-Synth-Auth": DECODED_KEY}
+
+    existing = {"x-synth-auth": "caller"}
+    assert inject_service_key_header(existing, ENCODED_KEY, header_name="X-Synth-Auth") == existing
+    assert existing == {"x-synth-auth": "caller"}  # 원본 불변
+
+    # 질의문자열 버전의 이름 매개변수화도 기본값 호환을 지킨다.
+    assert inject_service_key(None, ENCODED_KEY) == {"serviceKey": DECODED_KEY}
+    assert inject_service_key(None, ENCODED_KEY, param_name="apiKey") == {
+        "apiKey": DECODED_KEY
+    }

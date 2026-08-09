@@ -14,12 +14,19 @@ from .errors import (
     is_quota_exceeded,
     map_result_code,
 )
-from .keys import inject_service_key, prepare_service_key
+from .keys import (
+    DEFAULT_KEY_PARAM,
+    inject_service_key,
+    inject_service_key_header,
+    prepare_service_key,
+)
 from .normalize import NormalizedResponse, decode_body, normalize_response
 
 __all__ = [
+    "DEFAULT_KEY_PARAM",
     "prepare_service_key",
     "inject_service_key",
+    "inject_service_key_header",
     "ErrorInfo",
     "map_result_code",
     "is_quota_exceeded",

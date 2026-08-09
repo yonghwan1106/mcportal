@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.yonghwan1106/mcportal",
+  "description": "Quota-guarded MCP layer over Korean public data APIs (data.go.kr), compiled from OpenAPI specs",
+  "repository": {
+    "url": "https://github.com/yonghwan1106/mcportal",
+    "source": "github"
+  },
+  "version": "0.2.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "mcportal",
+      "version": "0.2.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

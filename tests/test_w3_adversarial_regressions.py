@@ -802,14 +802,33 @@ def test_protocol_documents_the_rounding_rule() -> None:
 
 
 def _import_harness() -> Any:
-    """``benchmarks/harness.py`` 를 파일 경로로 임포트한다(패키지가 아니다)."""
+    """``benchmarks/harness.py`` 를 파일 경로로 임포트한다(패키지가 아니다).
+
+    ``exec_module`` **전에** ``sys.modules`` 에 등록한다. 하네스는
+    ``from __future__ import annotations`` 아래에서 dataclass 를 정의하는데,
+    ``dataclasses`` 는 ``ClassVar``/``InitVar`` 판정을 위해 문자열 애노테이션을
+    ``sys.modules[cls.__module__].__dict__`` 로 되짚는다. 등록이 없으면 그 조회가
+    ``None`` 이라 ``AttributeError: 'NoneType' object has no attribute '__dict__'``
+    로 죽는다.
+
+    전체 실행에서는 :mod:`tests.test_benchmark_harness` 가 같은 이름으로 먼저
+    등록해 둔 덕에 우연히 통과했다 — 이 파일만 단독으로 돌리면 5건이 죽는
+    **실행 순서 의존 잠복 버그**였고, 부분 실행이 안 되는 테스트 파일은 회귀를
+    좁혀 볼 수 없게 만든다.
+    """
     import importlib.util
+    import sys
 
     path = REPO_ROOT / "benchmarks" / "harness.py"
     spec = importlib.util.spec_from_file_location("mcportal_bench_harness", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(spec.name, None)
+        raise
     return module
 
 
@@ -992,20 +1011,59 @@ def test_binary_reference_document_has_no_personal_data() -> None:
 # ---------------------------------------------------------------------------
 # F21 · F25 · F27(문서) — 선언과 사실의 범위를 맞춘다
 # ---------------------------------------------------------------------------
-def test_readme_marks_presets_as_repo_checkout_only() -> None:
-    """루트 README 가 wheel 미동봉 사실을 조건 없이 광고하지 않는다."""
+def test_readme_states_what_the_wheel_does_and_does_not_carry() -> None:
+    """루트 README 의 wheel 동봉 서술이 빌드 설정과 일치한다.
+
+    W4 에서 루트 ``README.md`` 가 영문 정본으로 바뀌고 한국어판이 ``README.ko.md``
+    로 이관됐다. 검사 대상만 두 파일로 옮기고 **검사 강도는 그대로 둔다** — 정본이
+    영어가 됐다는 이유로 한국어 독자가 보는 문서에서 이 고지가 빠지면, 이 회귀가
+    막으려던 사고(설치본의 실제 내용과 다른 광고, 개인정보 0건 주장의 범위 확대)가
+    한국어 쪽에서 그대로 재현된다.
+
+    v0.2.0 에서 사실이 **뒤집혔다.** 프리셋 4종이 wheel 에 동봉되기 시작했으므로
+    "동봉되지 않는다"를 강제하던 검사를 그대로 두면 이 테스트가 거짓을 지키는 셈이
+    된다. 그래서 방향만 반전하고 **검사할 축은 늘린다** — 이제 위험한 거짓말은
+    반대쪽이다. "다 들어 있다"고 적어 놓고 샘플링 증거(실응답 본문·카세트)까지 같이
+    나가면 배포하지 않기로 한 것을 배포하게 된다. 그래서 문서가 **동봉하지 않는
+    것**도 함께 적도록 요구하고, 그 주장을 ``pyproject.toml`` 의 실제 force-include
+    목록과 대조한다(문서만 고치고 설정이 따라오지 않는 경우를 잡는다).
+    """
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    assert "wheel 에 동봉되지 않는다" in readme
+    assert "the published wheel carries the four preset bundles" in readme
     assert "MCPORTAL_PRESETS" in readme
+    # 동봉하지 않는 것(샘플링 증거)을 같은 자리에서 밝힌다.
+    assert "stay in the" in readme
     # "개인정보 0건"은 하위 문서(§2-1)와 같은 범위로 좁혀 서술한다.
-    assert "번들 산출물" in readme
+    assert "The scope of that statement is the bundle artifacts" in readme
     assert "opendata_help@nia.or.kr" in readme
+
+    korean = (REPO_ROOT / "README.ko.md").read_text(encoding="utf-8")
+    assert "wheel 에 동봉된다" in korean
+    assert "MCPORTAL_PRESETS" in korean
+    assert "번들 산출물" in korean
+    assert "opendata_help@nia.or.kr" in korean
+
+    # 문서의 주장을 빌드 설정으로 확인한다: 번들 4종의 파일은 동봉 목록에 있고,
+    # 샘플링 증거는 한 줄도 없다.
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    force_include = pyproject.split(
+        "[tool.hatch.build.targets.wheel.force-include]"
+    )[1].split("\n[", 1)[0]
+    for preset_id in PRESET_IDS:
+        for name in ("source.json", "curation.json", "openapi.json", "README.md"):
+            assert f'"presets/{preset_id}/{name}"' in force_include, (
+                f"{preset_id}/{name} 가 wheel 동봉 목록에 없다"
+            )
+    for forbidden in ("cassettes", "samples", "sampled_schemas", "_raw", "_transcribed"):
+        assert forbidden not in force_include, (
+            f"wheel 동봉 목록에 {forbidden} 가 들어갔다 — 배포 대상이 아니다"
+        )
 
 
 def test_presets_readme_headline_matches_its_own_numbers() -> None:
     """절 제목의 수치가 본문·CLI 출력과 일치한다(격차를 축소해 말하지 않는다)."""
     readme = (PRESETS_ROOT / "README.md").read_text(encoding="utf-8")
-    assert "## 4. 응답 스키마 12건 중 10건이 아직 비어 있다" in readme
+    assert "## 4. 응답 스키마 12건 중 10건을 실키 샘플링으로 채웠다" in readme
     assert "절반이 비어 있다" not in readme
 
     total = unresolved = 0
@@ -1021,7 +1079,13 @@ def test_presets_readme_headline_matches_its_own_numbers() -> None:
             for method in item
             if method in ("get", "post", "put", "patch", "delete")
         )
-    assert (unresolved, total) == (10, 12)
+    # 절 제목이 말하는 "12건 중 10건" 은 이제 **해소한 개수**다. 그러므로 지금
+    # 남아 있어야 하는 미확정은 0 이고, 오퍼레이션 총계는 그대로 12 다.
+    assert (unresolved, total) == (0, 12)
+
+    # 제목의 10 이 어디서 온 숫자인지 본문이 근거를 대고 있다(측정일 · 호출 수).
+    assert "2026-08-09" in readme
+    assert "10회 호출" in readme
 
 
 def test_notice_data_separates_portal_page_snapshots_from_datasets() -> None:

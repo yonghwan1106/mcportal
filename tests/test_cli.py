@@ -28,7 +28,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
+import respx
 
 from mcportal import cli
 from mcportal.quota.ledger import UsageLedger, key_fp
@@ -545,14 +547,38 @@ def test_key_env_normalizes_encoded_key(
 def test_key_env_missing_variable_is_error(
     capsys: pytest.CaptureFixture[str], ledger_path: Path
 ) -> None:
-    """환경변수가 비어 있으면 1로 끝나고 키 원문은 어디에도 없다."""
+    """환경변수가 비어 있으면 1로 끝나고 키 원문은 어디에도 없다.
+
+    부재 안내는 **변수 이름을 되울리지 않는다**(W4 §5). ``_env_name_arg`` 가 키
+    형태를 걸러 내지만 순수 영숫자 인증키는 이름으로 통과하므로, 이름을 에코하면
+    막으려던 노출을 오류 메시지가 대신 저지른다. 그래도 오류 자체는 한국어로
+    무엇이 잘못됐는지 알려야 하므로 안내 문면의 존재를 함께 본다.
+    """
     code, out, err = run_cli(
         capsys, "quota", "status", "--ledger", str(ledger_path), "--key-env", "NO_SUCH_VAR"
     )
     assert code == cli.EXIT_ERROR
     assert out == ""
-    assert "NO_SUCH_VAR" in err
+    assert cli.KEY_ENV_MISSING in err
+    assert "NO_SUCH_VAR" not in err
     assert SYNTHETIC_KEY not in err
+
+
+def test_key_env_missing_message_never_echoes_an_alphanumeric_key(
+    capsys: pytest.CaptureFixture[str], ledger_path: Path
+) -> None:
+    """순수 영숫자 인증키를 ``--key-env`` 에 넘겨도 그 값이 stderr 로 새지 않는다.
+
+    이것이 이름 에코를 지운 이유다 - ``=``·공백·``%`` 가 하나도 없는 키는
+    :func:`~mcportal.cli._env_name_arg` 를 '이름'으로 통과하고, 옛 문면은 그
+    값을 그대로 부재 오류에 실었다.
+    """
+    alnum_key = "a1b2c3d4e5f6g7h8i9j0"
+    code, out, err = run_cli(
+        capsys, "quota", "status", "--ledger", str(ledger_path), "--key-env", alnum_key
+    )
+    assert code == cli.EXIT_ERROR
+    assert alnum_key not in out + err
 
 
 def test_key_fp_without_match_is_ok(
@@ -1074,3 +1100,310 @@ def test_cli_imports_standard_library_only() -> None:
     source = Path(cli.__file__).read_text(encoding="utf-8")
     for banned in ("import rich", "import click", "import typer", "import httpx"):
         assert banned not in source, f"CLI 에 금지된 의존성이 들어왔습니다: {banned}"
+
+
+# ---------------------------------------------------------------------------
+# 5. sample - 유일한 실호출 서브커맨드(W4 §3-2)
+# ---------------------------------------------------------------------------
+#: 샘플링 시험용 합성 번들 식별자와 기본 URL.
+SAMPLE_PRESET_ID = "99000009"
+SAMPLE_BASE = "https://apis.example.invalid/9990000/demo"
+
+
+def write_sampling_bundle(root: Path, preset_id: str = SAMPLE_PRESET_ID) -> Path:
+    """응답 스키마가 **미확정인** 오퍼레이션 1개짜리 합성 번들을 만든다.
+
+    :func:`write_synthetic_bundle` 의 문서는 응답 스키마를 선언하므로 샘플링
+    대상이 0건이다. 실호출 경로를 끝까지 도는 검증에는 미확정 자리가 필요하다.
+    """
+    directory = root / preset_id
+    directory.mkdir(parents=True, exist_ok=True)
+    document: dict[str, Any] = {
+        "swagger": "2.0",
+        "info": {"title": "가상 표본기관 미확정 조회", "version": "1.0"},
+        "host": "apis.example.invalid",
+        "basePath": "/9990000/demo",
+        "schemes": ["https"],
+        "produces": ["application/json"],
+        "paths": {
+            "/getUnknownList": {
+                "get": {
+                    "operationId": "getUnknownList",
+                    "summary": "합성 미확정 조회",
+                    "parameters": [
+                        {
+                            "name": "serviceKey",
+                            "in": "query",
+                            "required": True,
+                            "type": "string",
+                        },
+                        {
+                            "name": "pageNo",
+                            "in": "query",
+                            "required": True,
+                            "type": "integer",
+                        },
+                    ],
+                    # 응답 스키마를 주지 않는다 = 샘플링이 채울 자리.
+                    "responses": {"200": {"description": "정상"}},
+                }
+            }
+        },
+    }
+    source = {
+        "mcportal_preset_source": 1,
+        "preset_id": preset_id,
+        "service_id": preset_id,
+        "service_name": "가상 표본기관 미확정 조회",
+        "source_kind": "gw_swagger",
+        "key_param": "serviceKey",
+        "source_url": f"https://portal.example.invalid/data/{preset_id}/openapi.do",
+        "fetched_at": "2026-08-09T00:00:00+09:00",
+        "license_note": "합성 픽스처(실제 이용허락범위 아님)",
+        "provenance": {
+            "spec_origin": "테스트가 생성한 합성 문서",
+            "spec_url": f"https://portal.example.invalid/data/{preset_id}/openapi.do",
+            "raw_files": [],
+            "acquisition": "네트워크 호출 0회(합성)",
+            "personal_data_scan": "합성 문서이므로 개인정보 0건",
+        },
+        "document": document,
+    }
+    curation = {
+        "mcportal_curation": 1,
+        "preset_id": preset_id,
+        "service": {
+            "group": "합성 시험 묶음",
+            "title": "가상 표본기관 미확정 조회",
+            "version": "0.2.0",
+            "license_note": "합성 픽스처(실제 이용허락범위 아님)",
+        },
+    }
+    _write_json(directory / "source.json", source)
+    _write_json(directory / "curation.json", curation)
+    return directory
+
+
+def _mock_sample_gateway(result_code: str = "00") -> None:
+    """합성 게이트웨이를 세운다(응답이 요청 인증키를 되비추게 만든다)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "response": {
+                    "header": {"resultCode": result_code, "resultMsg": "합성 응답"},
+                    "body": {
+                        "pageNo": int(request.url.params.get("pageNo", "0")),
+                        "items": {"item": [{"name": "가상항목"}]},
+                    },
+                    "echoKey": request.url.params.get("serviceKey", ""),
+                }
+            },
+        )
+
+    respx.get(f"{SAMPLE_BASE}/getUnknownList").mock(side_effect=handler)
+
+
+def test_sample_appears_in_help(capsys: pytest.CaptureFixture[str]) -> None:
+    """최상위 사용법에 네 번째 서브커맨드가 실린다."""
+    code, out, _ = run_cli(capsys, "--help")
+    assert code == cli.EXIT_OK
+    assert "sample" in out
+
+
+def test_sample_requires_key_env(capsys: pytest.CaptureFixture[str]) -> None:
+    """인증키 없이는 시작할 수 없다(사용법 오류 2)."""
+    code, out, err = run_cli(capsys, "sample", SAMPLE_PRESET_ID)
+    assert code == cli.EXIT_USAGE
+    assert out == ""
+    assert "--key-env" in err
+
+
+def test_sample_requires_at_least_one_preset(capsys: pytest.CaptureFixture[str]) -> None:
+    """실호출 명령이므로 대상 프리셋을 생략할 수 없다."""
+    code, _, err = run_cli(capsys, "sample", "--key-env", "SOME_VAR")
+    assert code == cli.EXIT_USAGE
+    assert err != ""
+
+
+def test_sample_rejects_raw_key_in_key_env(capsys: pytest.CaptureFixture[str]) -> None:
+    """``--key-env`` 에 키 원문을 넘기면 막고, 그 값을 되울리지 않는다."""
+    code, out, err = run_cli(
+        capsys, "sample", SAMPLE_PRESET_ID, "--key-env", SYNTHETIC_KEY_ENCODED
+    )
+    assert code == cli.EXIT_USAGE
+    assert SYNTHETIC_KEY_ENCODED not in out + err
+    assert SYNTHETIC_KEY not in out + err
+
+
+def test_sample_missing_env_value_is_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """환경변수가 비어 있으면 1로 끝나고 변수 이름도 되울리지 않는다."""
+    write_sampling_bundle(tmp_path)
+    code, out, err = run_cli(
+        capsys,
+        "sample",
+        SAMPLE_PRESET_ID,
+        "--presets-root",
+        str(tmp_path),
+        "--key-env",
+        "NO_SUCH_SAMPLE_VAR",
+    )
+    assert code == cli.EXIT_ERROR
+    assert out == ""
+    assert cli.KEY_ENV_MISSING in err
+    assert "NO_SUCH_SAMPLE_VAR" not in err
+
+
+def test_sample_count_over_hard_cap_is_usage_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--count`` 는 샘플러 하드캡을 넘길 수 없다(쿼터 보호)."""
+    code, _, err = run_cli(
+        capsys, "sample", SAMPLE_PRESET_ID, "--key-env", "SOME_VAR", "--count", "9"
+    )
+    assert code == cli.EXIT_USAGE
+    assert "하드캡" in err
+
+
+@requires_curation
+def test_sample_unknown_preset_id_is_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """없는 프리셋 ID 는 실호출 전에 접는다(예산을 태우지 않는다)."""
+    write_sampling_bundle(tmp_path)
+    monkeypatch.setenv("SYNTH_SAMPLE_KEY", SYNTHETIC_KEY)
+    code, out, err = run_cli(
+        capsys,
+        "sample",
+        "99999999",
+        "--presets-root",
+        str(tmp_path),
+        "--key-env",
+        "SYNTH_SAMPLE_KEY",
+    )
+    assert code == cli.EXIT_ERROR
+    assert out == ""
+    assert "99999999" in err
+    assert SYNTHETIC_KEY not in err
+
+
+@requires_curation
+@respx.mock
+def test_sample_fills_schema_and_never_prints_the_key(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """정상 경로: 스키마를 확정하고, 출력에는 수치만 남는다."""
+    _mock_sample_gateway()
+    directory = write_sampling_bundle(tmp_path)
+    monkeypatch.setenv("SYNTH_SAMPLE_KEY", SYNTHETIC_KEY)
+
+    code, out, err = run_cli(
+        capsys,
+        "sample",
+        SAMPLE_PRESET_ID,
+        "--presets-root",
+        str(tmp_path),
+        "--ledger",
+        str(tmp_path / "ledger.db"),
+        "--budget",
+        "100",
+        "--count",
+        "2",
+        "--key-env",
+        "SYNTH_SAMPLE_KEY",
+    )
+    assert code == cli.EXIT_OK
+    assert SAMPLE_PRESET_ID in out
+    assert "호출 2회" in out
+    # 인증키도 응답 원문도 출력에 없다.
+    for forbidden in (SYNTHETIC_KEY, SYNTHETIC_KEY_ENCODED, "echoKey", "가상항목"):
+        assert forbidden not in out + err
+
+    document = json.loads((directory / "openapi.json").read_text(encoding="utf-8"))
+    assert document["info"]["x-mcportal"]["generation_mode"] == "sampled"
+    schema = document["components"]["schemas"]["GetUnknownListResponse"]
+    assert "response" in schema["properties"]
+
+
+@requires_curation
+@respx.mock
+def test_sample_json_output_is_machine_readable(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``--json`` 은 stdout 에 JSON 만 단독으로 싣고 키를 담지 않는다."""
+    _mock_sample_gateway()
+    write_sampling_bundle(tmp_path)
+    monkeypatch.setenv("SYNTH_SAMPLE_KEY", SYNTHETIC_KEY)
+
+    code, out, err = run_cli(
+        capsys,
+        "sample",
+        SAMPLE_PRESET_ID,
+        "--presets-root",
+        str(tmp_path),
+        "--ledger",
+        str(tmp_path / "ledger.db"),
+        "--budget",
+        "100",
+        "--count",
+        "2",
+        "--key-env",
+        "SYNTH_SAMPLE_KEY",
+        "--json",
+    )
+    assert code == cli.EXIT_OK
+    payload = json.loads(out)
+    assert payload["schema"] == cli.SCHEMA_SAMPLE
+    assert payload["calls"] == 2
+    assert payload["ok"] == 2
+    assert payload["failed"] == 0
+    assert payload["resolved"] == 1
+    assert isinstance(payload["notes"], list)
+
+    preset = payload["presets"][0]
+    assert preset["preset_id"] == SAMPLE_PRESET_ID
+    assert preset["target_operations"] == ["getUnknownList"]
+    # 중첩 dataclass 요약이 객체 배열로 펴진다(값은 담기지 않는다).
+    summary = preset["operations"][0]
+    assert summary["operation_id"] == "getUnknownList"
+    assert summary["schema_inferred"] is True
+    assert summary["sample_count"] == 2
+    assert SYNTHETIC_KEY not in out + err
+
+
+@requires_curation
+@respx.mock
+def test_sample_reports_total_failure_as_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """호출은 나갔는데 정상 응답이 0건이면 0 으로 끝내지 않는다.
+
+    전량 실패를 성공으로 보고하면 자동화가 "미확정을 채웠다"고 오인한다.
+    """
+    _mock_sample_gateway(result_code="99")
+    directory = write_sampling_bundle(tmp_path)
+    monkeypatch.setenv("SYNTH_SAMPLE_KEY", SYNTHETIC_KEY)
+
+    code, out, err = run_cli(
+        capsys,
+        "sample",
+        SAMPLE_PRESET_ID,
+        "--presets-root",
+        str(tmp_path),
+        "--ledger",
+        str(tmp_path / "ledger.db"),
+        "--budget",
+        "100",
+        "--count",
+        "2",
+        "--key-env",
+        "SYNTH_SAMPLE_KEY",
+    )
+    assert code == cli.EXIT_ERROR
+    assert "스키마 미확정" in out
+    assert SYNTHETIC_KEY not in out + err
+    # 실패했으므로 산출물을 갱신하지 않는다.
+    assert not (directory / "openapi.json").exists()

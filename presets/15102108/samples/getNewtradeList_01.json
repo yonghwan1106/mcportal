@@ -1,0 +1,30 @@
+{
+  "response": {
+    "body": {
+      "items": {
+        "item": [
+          {
+            "balPayments": "4938519466",
+            "expCnt": "606149",
+            "expDlr": "36260420221",
+            "impCnt": "1189202",
+            "impDlr": "31321900755",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "4938519466",
+            "expCnt": "606149",
+            "expDlr": "36260420221",
+            "impCnt": "1189202",
+            "impDlr": "31321900755",
+            "year": "총계"
+          }
+        ]
+      }
+    },
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "정상서비스."
+    }
+  }
+}

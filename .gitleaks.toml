@@ -1,0 +1,143 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yong Park
+#
+# MCPortal gitleaks 설정 — 기본 룰 유지 + data.go.kr 인증키 커스텀 룰.
+#
+# 왜 필요한가
+# ----------
+# MCPortal 은 공공데이터포털(data.go.kr) 인증키를 런타임에 주입하는 계층이다.
+# 카세트·샘플·테스트 픽스처가 리포에 함께 들어오므로 "스크러빙이 한 번 빠지면
+# 공개 리포에 실키가 박힌다"가 이 프로젝트의 최대 사고 시나리오다.
+# src/mcportal/replay/scrub.py 가 산출물 생성 시점의 게이트라면, 이 파일은
+# **커밋 이력 전체를 훑는 사후 게이트**다(.github/workflows/ci.yml 의 secrets 잡).
+#
+# 로컬 1회 실행(설계 §12 검증 항목):
+#   gitleaks git . --redact -v     # 커밋 이력 전수 — CI 의 secrets 잡과 같은 범위
+#   gitleaks dir . --redact -v     # 작업트리만(미커밋 파일 포함)
+#
+# --config 를 생략해도 gitleaks CLI 는 (스캔 대상 경로)/.gitleaks.toml 을
+# 자동으로 집는다(우선순위 4위). 반면 gitleaks-action 래퍼는 점 없는
+# gitleaks.toml 만 자동 탐지하므로, 워크플로에서는 GITLEAKS_CONFIG 로
+# 이 경로를 명시 지정한다.
+#
+# 실측(2026-08-09, gitleaks 8.30.1): 이 설정으로 커밋 이력 전수 스캔 시
+# 검출 0건. 아래 예외 항목은 전부 그 실측에서 걸린 합성 픽스처다.
+
+title = "MCPortal gitleaks config"
+
+[extend]
+# 기본 룰(약 200종)을 그대로 상속하고 그 위에 프로젝트 룰을 얹는다.
+# useDefault 와 path 는 동시에 쓸 수 없다.
+useDefault = true
+
+# ---------------------------------------------------------------------------
+# 프로젝트 커스텀 룰
+# ---------------------------------------------------------------------------
+
+[[rules]]
+id = "datago-credential-param"
+description = "data.go.kr 인증키(serviceKey 계열 파라미터)의 평문 값"
+
+# 이름 집합은 src/mcportal/replay/scrub.py 의 CREDENTIAL_PARAM_NAMES 와 같은
+# 범위다(serviceKey · apiKey · authKey · accessKey · secretKey 및 snake_case ·
+# kebab-case 변형). 값 문자 집합 [A-Za-z0-9%+/=] 는 포털이 발급하는 base64 키와
+# 그 퍼센트 인코딩 형태(%2B · %2F · %3D)를 함께 덮는다. 길이 하한 20 은 설계
+# 계약(W4 §7)이 지정한 값이다.
+#
+# 구분자 갈래가 두 개인 이유(2026-08-09 적대 표본으로 확인):
+#   ["']?\s*[=:]\s*["']?  → serviceKey=VALUE (쿼리) · "apiKey": "VALUE" (JSON)
+#                            · auth_key = 'VALUE' (파이썬) · X-Api-Key: VALUE (헤더)
+#   >                      → <serviceKey>VALUE</serviceKey> (XML). 공백 없이 붙은
+#                            '>' 만 받아 `if key > SOMECONST` 같은 비교식을 피한다.
+# 처음 쓴 `\bkey\b\s*[=:]` 는 JSON 의 닫는 따옴표("apiKey":) 때문에 카세트·샘플
+# 형태를 통째로 놓쳤다. F-08 이 도입하는 헤더 주입 경로까지 같이 덮어야 한다.
+# gitleaks 정규식 엔진은 Go RE2 라 lookahead/lookbehind 를 쓸 수 없다.
+regex = '''(?i)\b(?:service|api|auth|access|secret)[_-]?key\b(?:["']?\s*[=:]\s*["']?|>)([A-Za-z0-9%+/=]{20,})'''
+
+# 캡처 그룹 1 = 키 값. 아래 allowlist 의 regexTarget = "secret" 이 이 값을 본다.
+secretGroup = 1
+
+# 엔트로피 문턱은 두지 않는다. 실키를 놓치는 쪽(거짓 음성)이 훨씬 비싼
+# 게이트라 감도를 최대로 두고, 알려진 합성 픽스처만 아래에서 값으로 뺀다.
+
+# keywords 는 정규식 실행 **전에** 도는 대소문자 무시 부분문자열 필터다. 여기
+# 빠진 표기는 정규식이 아무리 맞아도 검사 자체가 안 된다(2026-08-09 적대 표본
+# 8번: `service_key:` 가 정규식에는 맞는데 keywords 에 없어 조용히 통과했다).
+# 이름 4갈래(service·api·auth·access·secret) × 구분자 3갈래(붙임·_·-) 전수를 적는다.
+keywords = [
+    "servicekey",
+    "service_key",
+    "service-key",
+    "apikey",
+    "api_key",
+    "api-key",
+    "authkey",
+    "auth_key",
+    "auth-key",
+    "accesskey",
+    "access_key",
+    "access-key",
+    "secretkey",
+    "secret_key",
+    "secret-key",
+]
+
+tags = ["key", "data.go.kr", "mcportal"]
+
+[[rules.allowlists]]
+description = """리포에 의도적으로 들어 있는 합성 픽스처. 여기 오르는 값은
+전부 사람이 손으로 지어낸 문자열이며 실제 발급키가 아니다. 새 항목을 넣을
+때는 반드시 '왜 합성인지'를 주석으로 남긴다."""
+regexTarget = "secret"
+regexes = [
+    # tests/test_compiler_openapi.py — 퍼센트 인코딩 왕복을 검사하는 20자 리터럴.
+    '''^ab12%2BCD%2F34%3D%3D$''',
+    # scrub.py 의 고정 플레이스홀더(스크러빙이 끝났다는 표시).
+    '''^__SCRUBBED__''',
+    # tests/* 가 쓰는 합성 마커. 실제 발급키가 이 접두사를 가질 수 없다.
+    '''^(?:FAKEKEY|SYNTHETICLEAK|CUSTOM_SECRET|SECRET123)''',
+    # presets/*/source.json 원문 문서의 자리표시자(serviceKey=xxxxxx 형태).
+    '''^x{4,}$''',
+]
+
+# ---------------------------------------------------------------------------
+# 전역 예외 — 좁게 유지한다. 경로 예외는 "그 경로에는 어떤 룰도 안 걸린다"는
+# 뜻이라, 커밋되지 않는 산출물 디렉터리에만 쓴다.
+# ---------------------------------------------------------------------------
+
+[[allowlists]]
+description = """빌드·가상환경 산출물. 전부 .gitignore 대상이라 커밋 이력
+스캔(gitleaks git)에는 애초에 안 들어오지만, 작업트리 스캔(gitleaks dir)이
+서드파티 패키지 수만 건을 훑어 로컬 실행이 사실상 불가능해지는 것을 막는다."""
+condition = "OR"
+paths = [
+    '''(^|/)\.venv/''',
+    '''(^|/)dist/''',
+    '''(^|/)\.pytest_cache/''',
+    '''(^|/)__pycache__/''',
+    '''\.egg-info/''',
+]
+
+[[allowlists]]
+description = """락파일의 --hash=sha256:... 은 재현 설치용 무결성 해시지
+자격증명이 아니다."""
+condition = "OR"
+paths = [
+    '''^requirements/lock-.*\.txt$''',
+]
+
+[[allowlists]]
+description = """기본 룰 generic-api-key(엔트로피 휴리스틱)의 거짓 양성.
+2026-08-09 실측으로 걸린 것만 값 단위로 적는다. 룰 전체나 tests/ 경로를
+통째로 빼지 않는 이유: 그러면 tests/ 안에 실키를 붙여 넣은 사고를 못 잡는다.
+새 픽스처가 걸리면 '왜 합성인지'를 적고 값을 한 줄 추가한다."""
+regexTarget = "secret"
+condition = "OR"
+regexes = [
+    # tests/test_cli.py — `--key-fp` 인자 형식 검사용 16진수 자리표시자.
+    # 0~9·a·b 를 순서대로 늘어놓은 값이라 발급키일 수 없다.
+    '''^0123456789ab$''',
+    # tests/test_cli.py — `--key-env` 이름 에코 제거(W4 §5) 회귀 테스트가 쓰는
+    # "순수 영숫자 키" 표본. 영문자와 숫자를 a1b2c3... 로 교대시킨 값이다.
+    '''^a1b2c3d4e5f6g7h8i9j0$''',
+]

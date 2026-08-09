@@ -1171,3 +1171,65 @@ def test_tuple_form_items_without_declarations_still_demote(
 ) -> None:
     """튜플 표기여도 원소가 아무것도 선언하지 않으면 0점 그대로다."""
     assert _response_schema(schema) is None
+
+
+# ---------------------------------------------------------------------------
+# F-08 - SourceSpec.key_location
+# ---------------------------------------------------------------------------
+def _minimal_source(**overrides: Any) -> SourceSpec:
+    """불변식을 만족하는 최소 SourceSpec 을 만든다(합성 기관·.invalid 도메인)."""
+    fields: dict[str, Any] = {
+        "provider": "data.go.kr",
+        "service_id": "99900001",
+        "service_name": "가상행정연구원 공개자료 서비스",
+        "base_url": "https://apis.example.invalid/9990000/demo",
+        "source_kind": SourceKind.GW_SWAGGER,
+        "operations": (
+            OperationSpec(operation_id="getDemoList", method="GET", path="/getDemoList"),
+        ),
+    }
+    fields.update(overrides)
+    return SourceSpec(**fields)
+
+
+def test_key_location_defaults_to_query() -> None:
+    """인증키 주입 위치의 기본값은 질의문자열이다(기존 소스 전부 그대로)."""
+    assert _minimal_source().key_location == "query"
+
+
+def test_swagger_adapter_yields_query_key_location() -> None:
+    """어댑터가 만든 소스도 기본값을 그대로 물려받는다(자동 승격 없음).
+
+    스펙 문서의 ``securityDefinitions`` 를 읽어 헤더로 바꾸는 경로는 만들지
+    않는다 - 인증 방식을 문서 선언이 바꾸게 두면 I3(인증키 격리)의 전제가 흔들린다.
+    """
+    source = load_gw_swagger(
+        _fixture("sources_gw_swagger_v2.json"), service_id="99900002", fetched_at=None
+    )
+    assert source.key_location == "query"
+
+
+def test_key_location_accepts_header() -> None:
+    """헤더 인증 제공자를 흡수할 수 있게 'header' 는 허용값이다."""
+    assert _minimal_source(key_location="header").key_location == "header"
+
+
+@pytest.mark.parametrize("value", ["headers", "Header", "", "cookie", "QUERY"])
+def test_unknown_key_location_is_rejected(value: str) -> None:
+    """허용값 밖의 위치는 생성 시점에 막는다(허용값 목록을 함께 알린다)."""
+    with pytest.raises(SourceSpecError) as excinfo:
+        _minimal_source(key_location=value)
+    assert "key_location" in str(excinfo.value)
+    assert "query, header" in str(excinfo.value)
+
+
+def test_key_location_is_validated_on_replace() -> None:
+    """``dataclasses.replace`` 로 나중에 바꾸는 경로도 같은 규칙을 지난다.
+
+    이 값은 어댑터가 아니라 프리셋 래퍼·프로파일이 나중에 명시하므로, 검사가
+    어댑터의 불변식 검증에만 있으면 실제 설정 경로가 통째로 검사를 비껴간다.
+    """
+    source = _minimal_source()
+    assert dataclasses.replace(source, key_location="header").key_location == "header"
+    with pytest.raises(SourceSpecError):
+        dataclasses.replace(source, key_location="body")

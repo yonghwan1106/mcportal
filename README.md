@@ -1,319 +1,370 @@
+<!-- mcp-name: io.github.yonghwan1106/mcportal -->
+
 # MCPortal
 
-**data.go.kr와 글로벌 MCP 생태계 사이의 빠진 다리 — 한국 공공 API 명세를 표준 OpenAPI 3.1로 정규화해 MCP로 컴파일하고, 일일 쿼터를 예산·백오프·캐시로 관리하는 완전 오픈·셀프호스트형 런타임 레이어**
+**The missing bridge between data.go.kr and the global MCP ecosystem.** MCPortal
+normalizes Korean public-API specifications into standard OpenAPI 3.1, compiles
+them into MCP servers, and puts every outbound call behind a hard daily budget
+with backoff and caching. Fully open source, fully self-hosted.
 
-> **정확도 한계 고지 (Accuracy Disclaimer)**
+한국어 문서: [`README.ko.md`](README.ko.md) — this English README is the
+canonical document and the Korean file is a translation of it.
+
+> **Accuracy disclaimer**
 >
-> data.go.kr는 잔여 쿼터(remaining quota) 조회 API를 제공하지 않는다. 따라서
-> MCPortal의 사용량 원장(usage ledger)은 **MCPortal을 경유한 호출만** 집계하는
-> 베스트에포트(best-effort) 추정치다. 같은 serviceKey가 MCPortal 밖(다른 스크립트,
-> 포털 콘솔, 타 도구)에서 소비한 호출은 원장에 잡히지 않으므로, 원장 값은 언제나
-> 실제 잔여량의 하한 근사일 뿐이다. 신뢰의 축은 이 추정치가 아니라 **하드 예산
-> 상한(`CALL_BUDGET`)** 이다. 원장이 부정확하더라도 하드 가드가 일일 상한을 넘는
-> 호출을 물리적으로 차단하므로, 쿼터 초과로 인한 계정 제재를 예방하는 안전선은
-> 언제나 `CALL_BUDGET`에서 나온다.
+> data.go.kr publishes no "remaining quota" endpoint. MCPortal's usage ledger
+> therefore counts **only the calls that went through MCPortal**, which makes it
+> a best-effort estimate. Calls that the same `serviceKey` spends outside
+> MCPortal — another script, the portal console, a different tool — never reach
+> the ledger, so the ledger value is always a lower-bound approximation of real
+> consumption. The axis of trust is not that estimate but the **hard budget cap
+> (`CALL_BUDGET`)**. Even when the ledger is wrong, the hard guard physically
+> blocks calls beyond the daily cap, so the safety line against quota-related
+> account sanctions always comes from `CALL_BUDGET`.
 
-## 설치
+## The no-key boundary
 
-```
-pip install mcportal            # 코어 런타임(의존성 httpx 단일)
-pip install "mcportal[mcp]"     # + MCP 변환 계층(fastmcp)
-```
-
-**의존성 정책**: 코어 런타임의 의존성은 **httpx 단일**이다. 스펙 정규화 컴파일러
-(`mcportal.compiler`)도 표준 라이브러리와 httpx만 쓴다. MCP 변환(`mcportal.mcp`)이
-쓰는 **fastmcp는 선택적 추가 의존성(`[mcp]` extra)** 이며, 설치하지 않아도
-`import mcportal` 과 전체 테스트 스위트는 그대로 돈다. 미설치 상태에서 MCP 변환을
-호출하면 설치 방법을 알려 주는 한국어 `ImportError` 로 막힌다. `[mcp]` extra 는
-fastmcp 와 함께 **anyio** 를 선언한다 — sync→async 브리지가 `anyio.to_thread` 를
-직접 임포트하기 때문이다(httpx 가 전이 의존으로 끌어오더라도, 직접 임포트에는
-직접 선언이 따라야 W4 의 정확 핀·락파일이 버전 드리프트를 잡는다).
-
-`import mcportal` 은 `mcportal.mcp` 를 **임포트하지 않는다.** fastmcp 없이도
-`import mcportal` 이 성공해야 하기 때문이다. MCP 변환 심볼은 모듈 `__getattr__`
-([PEP 562](https://peps.python.org/pep-0562/))로 **처음 참조할 때** 지연 해석되므로,
-`from mcportal.mcp import build_server` 와 `mcportal.build_server` 는 같은 객체를
-가리킨다. 어느 쪽으로 써도 무방하다.
-
-## 무키 경계 (serviceKey 없이 되는 것 vs 실키가 필요한 것)
-
-| serviceKey 없이 되는 것 (No key required) | 실키가 필요한 것 (Real key required) |
+| Works without any API key | Needs a data.go.kr service key |
 | --- | --- |
-| record/replay 카세트(cassette) 재생 데모 | 라이브 API 호출 (live API calls) |
-| 전체 테스트 스위트 실행 (`pytest`) | 라이브 응답 샘플링 (live sampling) |
-| 커밋된 스펙에서 MCP 서버 세우기 (spec-to-MCP) | 아직 카세트가 없는 API의 즉석 변환 |
-| 컴파일 데모 재생성 (`examples/compile_demo.py`) | 카세트 신규 녹화 (record) |
-| 프리셋 3종(4데이터셋) 재생성·조회 (`mcportal compile` / `presets`) — **리포 체크아웃 기준**(주1) | 미확정 응답 스키마 10건 채우기 |
-| 쿼터 현황 조회 (`mcportal quota status`) | 벤치마크 실키 항목 K1~K3 |
+| Replaying record/replay cassettes | Live API calls |
+| The full test suite (`pytest`), including the record-mode tests, which run on synthetic transports | Live response sampling |
+| Standing up an MCP server from a committed spec (spec-to-MCP) | Ad-hoc conversion of an API that has no cassette yet |
+| Regenerating the compile demo (`examples/compile_demo.py`) | Recording new cassettes |
+| Regenerating and listing the preset bundles (`mcportal compile` / `mcportal presets`) — bundled in the wheel since 0.2.0 (note 1) | Sampling a response schema that is still unresolved (`mcportal sample`) |
+| Reading quota status (`mcportal quota status`) | The key-dependent benchmark items K1–K3 |
+| Running the benchmark harness (the five key-free items in `benchmarks/PROTOCOL.md`) | — |
 
-> **주1 — 프리셋은 아직 wheel 에 동봉되지 않는다.** `presets/` 는 리포에만 있고
-> `pip install mcportal` 로 받은 패키지에는 들어 있지 않다(wheel 동봉은 W4 검토
-> 항목). 설치본에서 쓰려면 리포를 체크아웃한 뒤 `--presets-root <경로>` 또는
-> 환경변수 `MCPORTAL_PRESETS=<경로>` 로 번들 위치를 알려 주면 된다.
-> `mcportal presets` 는 프리셋을 찾지 못하면 탐색한 경로를 그대로 출력한다.
+Every demo, development and CI path in MCPortal runs without a key. The
+record/replay layer replays cassettes that were recorded earlier, so the same
+response flow can be reproduced and the whole test suite can go green with no
+`serviceKey` present. **Spec-to-MCP conversion has already happened at build
+time** — the compiled artifacts are committed under `specs/` — so even standing
+up an MCP server and answering tool calls needs no key. What does need a key is
+narrow: live traffic to data.go.kr, and sampling or converting an API that has
+no cassette yet.
 
-MCPortal의 데모·개발·CI 경로는 전부 무키로 돈다. 미리 녹화해 둔 카세트를 재생하는
-record/replay 계층 덕분에, serviceKey가 없어도 실제 API와 동일한 응답 흐름을 재현하고
-전체 테스트를 초록불로 통과시킬 수 있다. **스펙→MCP 변환은 설치·빌드 시점에 끝나
-있으므로**(산출물이 `specs/` 에 커밋된다) MCP 서버를 세워 도구를 호출하는 데까지도
-실키가 필요 없다. 실키를 요구하는 것은 실제 data.go.kr로 나가는 라이브 호출과,
-아직 카세트가 없는 API를 즉석에서 샘플링·변환하는 경로뿐이다.
+> **Note 1 — the preset bundles ship inside the wheel as of 0.2.0.**
+> Since 0.2.0, **the published wheel carries the four preset bundles** (16 bundle
+> files plus the two `presets/` documents, measured on the built artifact), so a
+> plain `pip install mcportal` can run `mcportal presets` and `mcportal compile`
+> with no checkout. What the wheel deliberately leaves out is the sampling
+> evidence — `cassettes/`, `samples/` and `sampled_schemas.json` stay in the
+> repository only. To use a different bundle set, point MCPortal at a checkout
+> with `--presets-root <path>` or the environment variable
+> `MCPORTAL_PRESETS=<path>`. When `mcportal presets` finds no bundle it prints
+> the paths it searched.
 
-### 무키 재현 데모 흐름
+### Key-free reproduction walkthrough
 
 ```
-# 1) 합성 픽스처로 스펙을 컴파일한다(네트워크 0건·인증키 0건).
-python examples\compile_demo.py
-#    → specs\demo\openapi.json + specs\demo\samples\*.json
-#    재실행하면 바이트 동일한 산출물이 나온다(결정론 검증이 스크립트에 내장).
+# 1) Compile a spec from synthetic fixtures (zero network, zero credentials).
+python examples/compile_demo.py
+#    -> specs/demo/openapi.json + specs/demo/samples/*.json
+#    Re-running produces byte-identical output; the determinism check is
+#    built into the script.
 
-# 2) 커밋된 스펙 + 카세트로 MCP 서버를 세운다(실키 불요).
+# 2) Stand up an MCP server from a committed spec plus a cassette (no key).
 python -c "from mcportal.mcp import build_server; \
 build_server('specs/demo/openapi.json', mode='replay', \
-cassette_path='<카세트 경로>')"
-#    specs\demo\ 에는 스펙과 샘플만 커밋돼 있고 카세트는 없다(W3 시점에도 그렇다).
-#    <카세트 경로>는 record 로 직접 녹화한 카세트를 가리켜야 한다.
-#    무키로 서버가 실제로 서고 도구 호출까지 응답하는 것은
-#    tests\test_mcp_wiring.py 의 마지막 케이스가 증명한다
-#    (그 테스트는 합성 카세트를 tmp_path 에 만들어 쓴다).
-#    presets\<id>\openapi.json 도 같은 자리에 넣을 수 있다(15000115 -> 도구 8개).
+cassette_path='<cassette path>')"
+#    specs/demo/ commits the spec and the samples, not a cassette, so
+#    <cassette path> must point at one you recorded yourself. That a server
+#    really stands up and answers a tool call without a key is proven by the
+#    last case in tests/test_mcp_wiring.py, which builds a synthetic cassette
+#    in tmp_path. presets/<id>/openapi.json fits the same slot.
 
-# 3) 실제 공개 스펙으로 만든 프리셋을 재생성한다(네트워크 0건·인증키 0건).
-#    ⚠️ 이 두 명령은 **리포를 체크아웃한 상태**를 전제한다. 프리셋은 아직 wheel 에
-#    동봉되지 않으므로(주1) `pip install mcportal` 환경에서는 "프리셋을 찾지
-#    못했습니다"가 나온다. 그 경우 --presets-root <경로> 또는
-#    환경변수 MCPORTAL_PRESETS=<경로> 로 번들 위치를 알려 주면 된다.
-mcportal presets            # 목록
-mcportal compile --check    # 커밋본과 재생성본의 바이트 비교(드리프트가 있으면 종료 코드 3)
+# 3) Regenerate the preset bundles from real published specs (no key).
+#    Needs a repo checkout (note 1); on a PyPI install pass --presets-root
+#    <path> or set MCPORTAL_PRESETS=<path>.
+mcportal presets            # list
+mcportal compile --check    # byte-compare committed vs regenerated (exit 3 on drift)
 
-# 4) 전체 테스트 스위트(실네트워크·실키·실데이터 0건).
+# 4) The whole test suite (no live network, no key, no real data).
 pytest -q
 ```
 
-## 단일 키 원칙 (멀티키 로테이션 미지원)
-
-MCPortal의 data.go.kr 프로파일은 **멀티키 로테이션(multi-key rotation)을 지원하지 않는다.**
-data.go.kr는 개발계정 1인당 1키에 일일 호출 한도를 부과하는 1인 1키 구조이며, 여러 키를
-번갈아 써서 한도를 우회하는 것은 서비스 운영정책 위반 소지가 있고 계정 제재 위험을 키운다.
-MCPortal은 이 구조를 그대로 존중해 단일 키만 주입받는다. 한도가 부족하면 키를 늘리는 대신,
-data.go.kr가 제공하는 **운영계정(운영단계) 전환**이라는 공식 경로 — 활용사례 등록 후 한도
-상향 심사 — 를 통해 정식으로 상한을 올리는 것을 안내한다.
-
-## 구현 상태
-
-### W1 — 쿼터·런타임·재현 골격
-
-- **쿼터가드 코어 (Quota-guard core)**
-  - [x] 토큰 버킷(token bucket) 레이트리미터
-  - [x] SQLite 사용량 원장(usage ledger)
-  - [x] `CALL_BUDGET` 하드 가드(hard budget cap)
-  - [x] 지수 백오프(exponential backoff)
-- **런타임 공통 레이어 (Runtime common layer)**
-  - [x] serviceKey 자동 주입(key injection)
-  - [x] XML / EUC-KR 정규화(normalization)
-  - [x] 오류코드 한국어 매핑(error-code mapping)
-  - [x] TTL 캐시(TTL cache)
-- **record-replay 골격 (record-replay skeleton)**
-  - [x] 카세트 녹화/재생(cassette record & replay)
-  - [x] serviceKey 자동 스크러빙(auto-scrubbing, 기본값 on)
-
-**예산 해석 우선순위**: `create_client(budget=...)` 명시 인자 > 환경변수
-`CALL_BUDGET` > 프로파일 기본 예산(`ProviderProfile.default_daily_budget`).
-인자를 생략해도 **쿼터가드는 항상 배선된다** — README가 "신뢰의 축은 하드 예산
-상한"이라고 선언한 이상, 기본 경로에서 가드가 조용히 사라지면 안 되기 때문이다.
-가드 없는 트랜스포트가 필요하면 `MCPortalTransport(guard=None)` 을 직접 만든다.
-
-가드가 항상 배선되면서 따라오는 두 가지 결과를 명시해 둔다.
-
-- **`CALL_BUDGET`이 정수가 아니면 클라이언트 생성 자체가 실패한다**(한국어
-  `ValueError`). 오염된 환경변수를 조용히 무시하고 다른 한도로 도는 것보다,
-  즉시 멈추고 고치게 하는 편이 하드 상한의 취지에 맞다.
-- **원장 파일이 만들어진다.** `ledger_path` 를 생략하면
-  `~/.mcportal/ledger.db` 를 쓰며, 위치는 `MCPORTAL_LEDGER` 환경변수로 바꿀 수
-  있다. 클라이언트를 닫으면(`client.close()` / `await client.aclose()`) 원장
-  커넥션도 함께 회수된다.
-
-**동시 호출에서의 하드 상한**: 쿼터가드는 `before_call` 시점에 in-flight 예약을
-선점하고 `after_call` 에서 반납한다. 판정 모수가 `원장 기록 + 예약`이므로,
-MCP 서버처럼 동시 tool call 이 들어오는 실행 형태에서도 실제 상위 호출 수가
-상한을 넘지 않는다(예약이 없으면 동시 요청 전부가 기록 이전에 판정을 통과한다).
-
-### W2 — 스펙 정규화 컴파일러 (`mcportal.compiler`)
-
-data.go.kr는 스펙을 한 가지 형태로 주지 않는다. odcloud OAS(JSON형), 게이트웨이
-Swagger(2.0/3.x), 그리고 스펙 파일 없이 활용가이드 문서만 있는 경우가 뒤섞여 있다.
-컴파일러는 이 셋과 목록조회 메타를 **단일 중간표현으로 흡수**한 뒤 표준 OpenAPI
-3.1로 산출한다.
-
-- [x] `sources` — 3가지 제공 방식 + 목록조회 메타 → 중간표현 `SourceSpec`
-- [x] `inference` — 정규화 응답 샘플 3~5개 → JSON Schema (오프라인·순수 함수)
-- [x] `openapi` — `SourceSpec` → OpenAPI 3.1 문서 + 결정론 직렬화
-- [x] `sampler` — 라이브 샘플링(쿼터가드 경유 강제 · 하드캡 5회 · 스크러빙 강제)
-
-**결정론**: 같은 입력이면 재생성 결과가 바이트 단위로 같다. 샘플 입력 순서가 달라도
-추론 결과가 같고(카운터 누적 기반 병합), 산출 JSON은 `sort_keys=True` · UTF-8 · LF ·
-끝 개행 1개로 고정된다. 생성 시각·호스트명·취득 시각은 산출물에 싣지 않는다 —
-그것들이 들어가는 순간 "재생성하면 바이트 동일"이라는 주장이 무너지기 때문이다.
-
-**공개 표면**: `mcportal` 최상위와 `mcportal.compiler` 는 **사용자가 실제로 조립하는
-이름**만 재수출한다. 진단용 헬퍼·타입 별칭·내부 기본값은 원 모듈에서 직접
-임포트한다 — 예컨대 추론기의 세부 설정은 `mcportal.compiler.inference` 에서,
-프리셋 드리프트 검사 함수는 `mcportal.compiler.curation` 에서 가져온다.
-
-**인증키 비노출**: 컴파일된 스펙에는 `security`·`securitySchemes` 를 넣지 않고,
-소스에 인증키 파라미터가 있어도 제거한다. 인증키는 트랜스포트가 주입하므로
-**MCP 도구 인자로 노출될 자리가 없다**(스펙 파일·프롬프트 로그 유출 차단).
-그 사실은 `info.x-mcportal.key_injection: "transport"` 로만 남는다.
-
-### W2 — MCP 변환 (`mcportal.mcp`)
-
-```python
-from mcportal.mcp import build_server
-
-server = build_server(
-    "specs/demo/openapi.json",   # 컴파일러가 만들어 커밋해 둔 스펙
-    mode="replay",               # 무키 경로: 카세트에서 응답을 재생한다
-    cassette_path="<녹화해 둔 카세트 경로>",
-)
-```
-
-`mode="live"` 로 바꾸고 `service_key=...` 를 주면 실제 API로 나간다. 이때도 요청은
-쿼터가드를 지나므로 하드 예산 상한이 그대로 적용된다.
-
-- [x] `FastMCP.from_openapi()` **위임** — 도구 정의·인자 변환·핸들러 생성 같은
-      자체 코드젠은 하지 않는다. 스펙→도구 변환의 정확도와 유지보수 책임은
-      fastmcp에 두고, MCPortal의 기여는 그 앞단(스펙 정규화)과 뒷단(쿼터·위생)에
-      집중한다.
-- [x] 계열 차이 흡수 — fastmcp 2.x(`from_openapi`)와 3.x(`OpenAPIProvider`)를
-      런타임 시그니처 introspection으로 골라 호출한다.
-- [x] sync→async 트랜스포트 브리지 — fastmcp는 `httpx.AsyncClient` 를 요구하지만
-      MCPortal 런타임은 sync다. 쿼터 로직을 async로 재구현하지 않고 워커 스레드로
-      위임해, **async 경로에서도 하드 예산 상한·키 주입·캐시·record/replay가 그대로
-      살아 있다**(동시 tool call 에서도 예약 카운터가 상한을 지킨다).
-- [x] **XML 응답 정규화** — 브리지가 XML 본문을 정규화 JSON으로 재직렬화해 올려
-      보낸다. 컴파일러는 XML→dict 변환 결과에서 스키마를 추론하므로, 런타임이
-      원본 XML을 그대로 넘기면 선언과 실제가 어긋나 도구 호출이 전부 실패한다.
-      `_type=json`을 무시하고 XML을 돌려주는 data.go.kr 게이트웨이 오류도 같은
-      경로로 흡수된다. 컴파일된 스펙의 200 `content` 키가 항상
-      `application/json`인 것이 이 규약의 짝이며, 원 선언은
-      `responses.200.x-mcportal.upstream_media_type`에 남는다.
-- [x] 임포트 가드 — fastmcp 미설치 시 설치 방법을 담은 한국어 `ImportError`.
-
-### W3 — 프리셋 3종(4데이터셋)과 큐레이션 2층 구조
-
-`presets/` 에 공공데이터포털의 **실제 공개 스펙**으로 만든 번들이 들어 있다. 자동
-변환만으로는 도구 설명이 전부 "목록 조회"로 보이는 문제를 **코드가 아니라
-데이터로** 푸는 것이 이 계층의 목적이다.
-
-| ID | 서비스 | 소스 종류 | 오퍼레이션 | 응답 미확정 | 이용허락범위 |
-|---|---|---|---|---|---|
-| `15000115` | 법제처 국가법령정보 공유서비스 | `rest_doc_manual` | 8 | 8 | 공공누리 제1유형(출처표시) |
-| `15081808` | 국세청 사업자등록정보 진위확인·상태조회 | `odcloud_swagger` | 2 | 0 | 제한 없음 |
-| `15101612` | 관세청 국가별 수출입실적 | `gw_swagger` | 1 | 1 | 제한 없음 |
-| `15102108` | 관세청 수출입총괄 | `gw_swagger` | 1 | 1 | 제한 없음 |
-
-도메인 기준으로 **3종**(법령 / 사업자등록 / 관세)이고 관세만 데이터셋이 2개라
-모든 문서에서 **"3종(4데이터셋)"** 으로 표기한다.
-
-번들 하나는 파일 넷이다.
+## Install
 
 ```
-presets/<id>/
-├─ source.json     ← 스펙 원문 + 출처 URL·취득일·sha256 (아래층 입력, 원문 무손상)
-├─ curation.json   ← 사람이 확인한 설명·예시·힌트    (위층 입력)
-├─ openapi.json    ← 두 층을 병합한 산출물            (커밋 대상)
-└─ README.md       ← 이 데이터셋의 출처·미해결 항목
+pip install mcportal            # core runtime (single dependency: httpx)
+pip install "mcportal[mcp]"     # + the MCP conversion layer (fastmcp)
 ```
 
-- **아래층(엔진)에는 도메인 지식이 0줄이다.** `mcportal.compiler.curation` 은
-  큐레이션 데이터를 읽고 검증하고 병합하는 일반 엔진이며, 특정 기관·데이터셋의
-  이름이 코드에 등장하지 않는다(테스트가 소스 문자열 스캔으로 회귀 검증한다).
-- **큐레이션은 스펙 사실을 바꾸지 않는다.** 설명·예시·태그·힌트만 얹고, 파라미터의
-  타입·위치·필수 여부와 경로·메서드는 원 스펙 선언이 정본이다. 사실 교정 통로는
-  근거(`reason`)를 요구하는 두 가지뿐이다 — 응답 스키마 미확정 강등과 파라미터 제거.
-- **응답 스키마 12건 중 10건이 아직 미확정이다.** 숨기지 않고 산출 문서의
-  `info.x-mcportal.schema_inference.unresolved` 에 숫자로 남긴다. 이 자리는 **v0.2
-  실키 샘플링에서 채워진다.** W3 는 인증키를 한 번도 쓰지 않았고 게이트웨이 데이터
-  호출도 0회이므로, 실제 응답 구조는 아직 확인된 바가 없다.
-- 같은 입력이면 `openapi.json` 은 **바이트 동일**하게 재생성된다. `mcportal compile
-  --check` 를 CI 게이트로 쓴다(드리프트가 있으면 종료 코드 3). 다만
-  `info.x-mcportal.tool_version` 이 패키지 버전을 담으므로 **버전을 올리면 4개
-  산출물이 전부 바뀌며**, 그때는 재생성이 규약이다.
+**Dependency policy: the core runtime depends on httpx and nothing else.** The
+spec-normalizing compiler (`mcportal.compiler`) uses only the standard library
+and httpx. [fastmcp](https://github.com/PrefectHQ/fastmcp) is required solely by
+`mcportal.mcp` and ships as the optional `[mcp]` extra — without it,
+`import mcportal` and the entire test suite still work, and calling into the MCP
+layer raises a Korean `ImportError` that explains how to install it. The `[mcp]`
+extra also declares **anyio**, because the sync-to-async bridge imports
+`anyio.to_thread` directly; httpx pulls anyio in transitively, but a direct
+import deserves a direct declaration so that pins and lockfiles constrain it.
 
-규약·미해결 항목은 [`presets/README.md`](presets/README.md), 스펙 메타데이터의 출처와
-이용조건은 [`presets/NOTICE-DATA.md`](presets/NOTICE-DATA.md)가 정본이다.
+`import mcportal` does **not** import `mcportal.mcp` — that is what keeps the
+import working without fastmcp installed. The MCP symbols are resolved lazily on
+first attribute access through a module `__getattr__`
+([PEP 562](https://peps.python.org/pep-0562/)), so `from mcportal.mcp import
+build_server` and `mcportal.build_server` refer to the same object. Either
+spelling is fine.
 
-### W3 — CLI (`mcportal`)
+### Single-key principle (no multi-key rotation)
 
-표준 라이브러리 `argparse` 만 쓴다. **신규 런타임 의존성 0** 이 이 프로젝트의
-구속 규칙이라, 터미널 표도 자체 폭 계산으로 그린다(한글 2폭 · ASCII 구분선 ·
-Windows cp949 콘솔 안전).
+MCPortal's data.go.kr profile **does not support multi-key rotation.**
+data.go.kr issues one key per development account and meters a daily call limit
+against it; cycling several keys to escape that limit risks violating the
+service's operating policy and inviting account sanctions. MCPortal respects the
+structure as it is and accepts a single key. When the limit is too low, the
+supported answer is data.go.kr's own path — registering a use case and applying
+for the operational tier — not more keys.
+
+## CLI
+
+The CLI uses the standard library `argparse` only. **Zero new runtime
+dependencies** is a binding rule for this project, so even the terminal tables
+are laid out by hand (Hangul counted as double width, ASCII rules, safe on a
+Windows cp949 console).
 
 ```
 mcportal quota status [--ledger PATH] [--budget N] [--day YYYY-MM-DD]
                       [--key-fp FP | --key-env VAR] [--json]
 mcportal compile [PRESET_ID ...] [--presets-root PATH] [--check] [--json]
 mcportal presets [--presets-root PATH] [--json] [--verbose]
+mcportal sample PRESET_ID ... --key-env VAR [--budget N] [--count N]
+                [--ledger PATH] [--presets-root PATH] [--json]
 ```
 
-| 서브커맨드 | 하는 일 |
-|---|---|
-| `quota status` | 오늘(KST) 사용량·예산·잔여·상태를 키 지문별로 보여 준다. **원장은 읽기 전용(`mode=ro`)으로만 열고 만들지 않는다.** 예산 해석 우선순위는 `--budget` > `CALL_BUDGET` > 프로파일 기본값이며 어느 경로였는지 출력에 밝힌다 |
-| `compile` | 프리셋을 재생성한다. 내용이 같으면 파일을 다시 쓰지 않는다. `--check` 는 쓰지 않고 바이트 비교만 한다 |
-| `presets` | 번들 목록을 표로 보여 준다. `--verbose` 는 큐레이션 메모까지 펼친다 |
+| Subcommand | What it does |
+| --- | --- |
+| `quota status` | Shows today's (KST) usage, budget, remainder and state per key fingerprint. **The ledger is opened read-only (`mode=ro`) and never created.** Budget resolution order is `--budget` > `CALL_BUDGET` > profile default, and the output states which path was taken |
+| `compile` | Regenerates preset bundles. Files whose content is unchanged are not rewritten. `--check` writes nothing and only byte-compares |
+| `presets` | Lists the bundles as a table; `--verbose` expands the curation notes |
+| `sample` | Live sampling that fills in response schemas still marked unresolved, writing the inferred schema, the response bodies and a replayable cassette. It is the one subcommand that needs a key, and the key is taken **only** from the environment variable named by `--key-env VAR`, never as a literal argument |
 
-종료 코드: **0** 정상(원장 없음·프리셋 없음·변경 없음을 포함한다 — 빈 상태는
-실패가 아니다) / **1** 실행 실패 / **2** 사용법 오류 / **3** `compile --check`
-드리프트 / **130** 사용자 중단.
+Exit codes: **0** success (including "no ledger", "no presets" and "nothing
+changed" — an empty state is not a failure) / **1** execution failure / **2**
+usage error / **3** drift found by `compile --check` / **130** user interrupt.
 
-`--json` 은 stdout에 JSON 단독으로 나가고(사람용 문구가 섞이지 않아 파이프 안전),
-오류는 전부 stderr로 간다. **인증키 원문은 어떤 경로로도 출력되지 않는다** —
-`--key-env` 도 환경변수 값을 읽어 지문만 로컬에서 계산한다(원장에 키 원문 자체가
-없으므로 CLI가 다룰 수 있는 것이 애초에 지문뿐이다).
+`--json` prints JSON alone on stdout (no human prose mixed in, so it is
+pipe-safe) and sends every error to stderr. **A raw service key is never printed
+on any path** — even `--key-env` reads the environment variable and computes the
+fingerprint locally. The ledger stores no raw key, so a fingerprint is the only
+thing the CLI ever had available to show.
 
-### W3 — 벤치마크 (`benchmarks/`)
+## Presets — three services, four datasets
 
-측정 계획을 **실행 코드보다 먼저** 확정하는 선등록(pre-registration) 방식이다.
-[`benchmarks/PROTOCOL.md`](benchmarks/PROTOCOL.md)가 항목·반복 수·통계 정의·한계를
-먼저 못박고, 하네스는 그 문서에 없는 항목을 재지 않는다. 결과 파일에는
-PROTOCOL.md의 지문이 박히므로 어느 판본으로 쟀는지 사후에 확인할 수 있다.
+`presets/` holds bundles built from **real published specifications** on
+data.go.kr. Their purpose is to demonstrate, **in data rather than in code**,
+the fix for the failure mode of naive spec conversion, where every generated
+tool ends up described as "list query".
+
+| ID | Service | Domain | Source kind | Operations | Data licence as published |
+| --- | --- | --- | --- | --- | --- |
+| `15000115` | Ministry of Government Legislation — national law information sharing service | law | `rest_doc_manual` | 8 | KOGL Type 1 (attribution) |
+| `15081808` | National Tax Service — business registration validity and status lookup | business registration | `odcloud_swagger` | 2 | no restriction stated |
+| `15101612` | Korea Customs Service — trade by country | customs | `gw_swagger` | 1 | no restriction stated |
+| `15102108` | Korea Customs Service — import/export summary | customs | `gw_swagger` | 1 | no restriction stated |
+
+Licence wording is what data.go.kr displayed on the acquisition date recorded in
+each bundle. By domain there are **three services**, and only customs has two
+datasets, which is why every document writes **"three services (four
+datasets)"**.
+
+**Ten of the twelve response schemas were unresolved; live sampling on
+2026-08-09 settled all ten** (`15000115` eight, `15101612` one, `15102108` one —
+one call per operation, ten calls total). The inferred schemas are persisted in
+each bundle's `sampled_schemas.json`, the response bodies in `samples/` and the
+request/response pairs in `cassettes/`, so the result **replays offline with no
+key**. Sampled bundles report `generation_mode: "sampled"` in
+`info.x-mcportal`.
+
+The remaining two operations (`15081808`) were never unresolved — that source
+declares its response schema. That bundle was deliberately left out of sampling
+because its request body carries a business registration number, so its schema is
+declared but not measured. MCPortal does not hide either state: the live count is
+written into `info.x-mcportal.schema_inference.unresolved` in the generated
+document, and what each bundle still does not know is listed in its own
+`presets/<id>/README.md`. Writing down something unverified as if it were
+verified is against the rules of this project.
+
+A bundle is four committed files, plus the sampling evidence where it exists:
 
 ```
-python benchmarks/harness.py --label <라벨>     # 결과: benchmarks/results/bench_<날짜>_<라벨>.json
+presets/<id>/
+├─ source.json           <- the spec document plus source URL, acquisition date, sha256
+├─ curation.json         <- human-checked descriptions, examples, hints
+├─ openapi.json          <- the merge of both layers (the committed artifact)
+├─ README.md             <- provenance and open questions for this dataset
+├─ sampled_schemas.json  <- schemas inferred from live samples (sampled bundles only)
+├─ samples/              <- scrubbed response bodies from those calls
+└─ cassettes/            <- request/response pairs for offline replay
 ```
 
-무키 5종(replay 왕복 · 스크러빙 · 컴파일+결정론 · 쿼터가드 오버헤드 · FastMCP 빌드)을
-잰다. 네트워크 호출 0건이며 입력은 100% 합성이거나 커밋된 프리셋이다. 이상치를
-제거하지 않고 원자료 표본을 결과 파일에 그대로 싣는다(재검산 가능).
+The four files at the top are what ships in the wheel. The sampling evidence
+stays in the repository.
 
-**이 수치는 경쟁 라이브러리와의 비교가 아니라 MCPortal이 스스로 얹은 계층의
-비용이다.** 2층 구조의 효용을 판정하는 항목(K2 — 자동생성 단독 vs 큐레이션의 툴콜
-성공률)은 프로토콜에 **정의만** 되어 있고 실키 확보 후 v0.2에서 실행된다. 정의를
-미리 적어 둔 이유는 키를 얻은 뒤에 유리한 판정 기준을 고르는 일을 막기 위해서다.
+- **The lower layer carries zero lines of domain knowledge.**
+  `mcportal.compiler.curation` is a general engine that reads, validates and
+  merges curation data; no institution or dataset name appears in the code, and
+  a test enforces that by scanning the source strings.
+- **Curation does not change spec facts.** It adds descriptions, examples, tags
+  and hints. Parameter type, location and requiredness, and operation path and
+  method, remain whatever the source spec declares. Only two channels can
+  correct a fact, and both demand a written `reason`: downgrading a response
+  schema to unresolved, and removing a parameter.
+- Given the same inputs, `openapi.json` regenerates **byte-identically**. Use
+  `mcportal compile --check` as a CI gate (exit code 3 on drift). One caveat:
+  `info.x-mcportal.tool_version` carries the package version, so **bumping the
+  version changes all four artifacts**, and regenerating is the convention when
+  that happens.
 
-## 로드맵
+Conventions and open items are governed by
+[`presets/README.md`](presets/README.md); provenance and terms of use for the
+spec metadata are governed by
+[`presets/NOTICE-DATA.md`](presets/NOTICE-DATA.md).
 
-- **W4**: 의존성 정확 핀 + 락파일 · 프리셋 wheel 동봉 검토 · v0.2 준비
-- **v0.2**: 실키 샘플링으로 미확정 응답 스키마 10건 확정 · 벤치마크 실키 항목 K1~K3
+## Architecture
 
-## License
+Two layers at compile time, one guarded chain at run time.
 
-Apache-2.0. 자세한 내용은 [`LICENSE`](LICENSE) 및 [`NOTICE`](NOTICE)를 참고하라.
+```
+COMPILE TIME  (offline: no key, no network)
 
-코드가 아닌 **데이터 유래 파일**(테스트 픽스처·응답 샘플·컴파일 산출물)의 출처와
-이용조건은 [`NOTICE-DATA.md`](NOTICE-DATA.md)가 별도로 추적한다.
+  spec documents                      +--------------------------------+
+   - odcloud OAS (JSON)               | lower layer: the compiler      |
+   - gateway Swagger 2.0 / 3.x  --->  | zero domain knowledge          |
+   - hand-mapped usage guide          | sources -> SourceSpec -> IR    |
+                                      +---------------+----------------+
+                                                      |
+  curation.json                                       |
+  (human-checked descriptions,  --------------->    merge
+   examples, hints)                    upper layer: data, not code
+                                                      |
+                                                      v
+                                         openapi.json (committed;
+                                         byte-identical on rebuild)
 
-- **API를 호출해 받은 실응답 데이터는 0건이다.** 테스트 픽스처·카세트·데모 산출물은
-  전부 합성이며, 무키 재현 경로는 그 합성 픽스처만으로 성립한다.
-- **W3부터 공공 API의 스펙 메타데이터**(스웨거 문서·요청변수/출력결과 표)는 출처
-  URL과 취득일을 명기한 뒤 `presets/` 에 커밋한다. 취득은 전부 무인증이며 인증키
-  사용 0회·게이트웨이 데이터 호출 0회다. 스펙 문서에 포털이 문서화용으로 적어 둔
-  예시값이 섞여 있고 그 값은 전부 자리표시자다 — 파일별 출처·이용조건·예시값
-  목록은 [`presets/NOTICE-DATA.md`](presets/NOTICE-DATA.md)가 정본이다.
-- **개인을 식별하는 정보**(실명·실 사업자등록번호·개인 전화·개인 이메일)는 0건이다.
-  범위는 **번들 산출물**(`source.json` · `curation.json` · `openapi.json` · 각
-  `README.md`) 기준이다. `presets/_raw/` 의 포털 페이지 스냅샷에는 NIA 운영기관
-  창구 이메일(`opendata_help@nia.or.kr`)·대표전화(`1566-0025`)와 각 데이터셋의
-  관리부서 대표번호가 원문 그대로 남아 있으며, 기관 창구 정보이지 개인 연락처가
-  아니다 — 근거와 목록은 [`presets/NOTICE-DATA.md`](presets/NOTICE-DATA.md) §2-1
-  이 정본이다.
+RUN TIME  (one MCP tool call)
+
+  MCP client
+      |  tool call
+      v
+  FastMCP server            <- built by FastMCP.from_openapi() from openapi.json
+      |
+      v
+  sync/async bridge  ->  MCPortalTransport
+                            |-- quota guard      token bucket + SQLite ledger
+                            |                    + CALL_BUDGET hard cap + backoff
+                            |-- key injection    the key never enters the spec
+                            |-- TTL cache
+                            |-- record / replay  cassettes, scrubbed on write
+                            |-- normalization    XML -> JSON, EUC-KR, error codes
+                            v
+                     data.go.kr      (or the cassette, in replay mode)
+```
+
+Two consequences of that shape are worth stating explicitly.
+
+- **Tool definitions are not hand-generated.** `FastMCP.from_openapi()` owns the
+  spec-to-tool conversion; MCPortal contributes the stage before it (spec
+  normalization) and the stage after it (quota and hygiene). Version-family
+  differences are absorbed by runtime signature introspection: it uses
+  `FastMCP.from_openapi` where the class exposes it and otherwise falls back to
+  building `FastMCP(providers=[OpenAPIProvider(...)])`. That is a capability
+  check rather than a version check — `from_openapi` is **not** a 2.x-only entry
+  point, it exists in the 3.x line too. The dependency is pinned to
+  `fastmcp==2.14.7` because that is the combination actually exercised under
+  cassette replay; the known hard boundary is **4.0**, which moves the HTTP stack
+  to `httpx2>=2.5` and therefore breaks the `httpx.AsyncBaseTransport` bridge the
+  transport is built on (4.0 also re-splits the distribution into
+  `fastmcp-slim`). The rationale is recorded next to the pin in `pyproject.toml`.
+- **The service key has no place to leak into.** The compiler emits no
+  `security` or `securitySchemes` and strips key parameters out of the source,
+  so the key is never an MCP tool argument, never in a spec file, never in a
+  prompt log. Only the fact of transport-side injection survives, as
+  `info.x-mcportal.key_injection: "transport"`.
+
+The guard is wired on every default path. Budget resolution is
+`create_client(budget=...)` > the `CALL_BUDGET` environment variable > the
+profile default, and omitting the argument still wires the guard — a README that
+declares the hard cap to be the axis of trust cannot let the guard quietly
+vanish. An in-flight reservation is taken at `before_call` and released at
+`after_call`, so the cap holds even when an MCP server issues concurrent tool
+calls.
+
+## Benchmarks
+
+The measurement plan is pre-registered.
+[`benchmarks/PROTOCOL.md`](benchmarks/PROTOCOL.md) fixes the items, repeat
+counts, statistical definitions and limitations before the harness existed, and
+the harness measures nothing that is not in that document. Result files embed a
+fingerprint of the protocol, so which revision produced a number stays checkable
+after the fact.
+
+```
+python benchmarks/harness.py --label <label>
+```
+
+Five key-free items are measured (replay round trip, scrubbing, compile plus
+determinism, quota-guard overhead, FastMCP build). Zero network calls; inputs
+are either fully synthetic or the committed presets. Outliers are not removed —
+the raw samples ship inside the result file so anyone can recompute.
+
+**Headline: quota-guard overhead is a median of +0.90 ms per call**
+(+901,050 ns; guarded median 1.04 ms against a bare median 0.14 ms; N = 200
+after 20 warmup rounds; measured 2026-08-09 on Windows 10, CPython 3.11.9,
+httpx 0.28.1, SQLite 3.45.1).
+
+Read that as an **absolute increment**, and read it with two facts attached.
+The number **includes the SQLite ledger write** (WAL journal mode), because that
+write is part of the real cost. The baseline it is subtracted from is a bare
+`httpx.Client` over an in-memory `httpx.MockTransport` — no socket, no I/O — so
+the same measurement expressed as a percentage is large by construction and is
+not meaningful on its own. Against a real data.go.kr round trip the comparison
+looks different, and MCPortal does not claim that comparison here because it has
+not been measured.
+
+**These numbers are the cost of the layer MCPortal adds to itself, not a
+comparison against competing libraries.** The item that would judge whether the
+two-layer design pays off (K2 — tool-call success rate of naive generation
+versus curation) is **defined only** in the protocol and **has not been run.**
+Writing the definition down in advance is deliberate: it prevents picking a
+favourable criterion after the results are in. The live key used in 0.2.0 went to
+response-schema sampling only; the key-dependent benchmark items K1–K3 are out of
+scope for this release.
+
+## Machine-readable preset root
+
+`mcportal presets --json` reports a `root_source` key alongside `root`, labelling
+where the adopted preset root came from: `argument` (an explicit
+`--presets-root`), `env:MCPORTAL_PRESETS`, `discovered` (found by the default
+search), or `none` (no root at all) — so a script can tell a deliberate root from
+an accidental one.
+
+## Licence
+
+Apache-2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+Provenance and terms of use for **data-derived files** (test fixtures, response
+samples, compiler artifacts) are tracked separately in
+[`NOTICE-DATA.md`](NOTICE-DATA.md).
+
+- **Zero response payloads obtained by calling an API are committed.** Test
+  fixtures, cassettes and demo artifacts are all synthetic, and the key-free
+  reproduction path stands on those synthetic fixtures alone.
+- **Spec metadata from public APIs** (Swagger documents, request/response
+  tables) is committed under `presets/` with its source URL and acquisition date
+  recorded. Acquisition was entirely unauthenticated: zero uses of a service
+  key, zero gateway data calls. Spec documents contain example values the portal
+  wrote for documentation purposes, and those are all placeholders — the
+  per-file list of sources, terms and example values is governed by
+  [`presets/NOTICE-DATA.md`](presets/NOTICE-DATA.md).
+- **Zero personally identifying information** (real names, real business
+  registration numbers, personal phone numbers, personal email addresses) is
+  present. The scope of that statement is the bundle artifacts — `source.json`,
+  `curation.json`, `openapi.json` and each `README.md`. The portal page
+  snapshots under `presets/_raw/` do retain the operating agency's public help
+  desk email (`opendata_help@nia.or.kr`), its main phone number (`1566-0025`)
+  and the representative numbers of each dataset's managing department, as they
+  appeared in the original; those are institutional contact points, not personal
+  ones. The evidence and the full list are governed by
+  [`presets/NOTICE-DATA.md`](presets/NOTICE-DATA.md) §2-1.

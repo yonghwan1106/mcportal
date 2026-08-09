@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcportal"
-version = "0.1.0"
+version = "0.2.0"
 description = "Quota-guarded runtime layer bridging Korean public data APIs (data.go.kr) into the MCP ecosystem"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,6 +23,15 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+# PyPI 0.1.0 페이지의 project_urls 는 null 이라 프로젝트 페이지에서 리포로 가는
+# 링크가 하나도 없었다. MCP 레지스트리는 server.json 의 repository.url 과
+# 배포 아티팩트의 출처가 같은 곳을 가리키는지를 사람이 대조하는 절차를 두므로,
+# 배포 메타데이터 쪽에도 같은 URL 을 명시해 둔다.
+[project.urls]
+Homepage = "https://github.com/yonghwan1106/mcportal"
+Repository = "https://github.com/yonghwan1106/mcportal"
+Issues = "https://github.com/yonghwan1106/mcportal/issues"
+
 [project.scripts]
 # Console entry point for the standard-library-only CLI (mcportal.cli).
 # Declaring a script adds no runtime dependency: cli.py imports argparse,
@@ -30,27 +39,97 @@ classifiers = [
 mcportal = "mcportal.cli:main"
 
 [project.optional-dependencies]
-# Optional MCP conversion layer. The core runtime dependency stays httpx-only;
-# fastmcp is required only by mcportal.mcp (spec -> MCP server delegation).
+# 선택적 MCP 변환 계층. 코어 런타임 의존성은 httpx 단일을 유지하며, fastmcp 는
+# mcportal.mcp(스펙 -> MCP 서버 위임) 에서만 필요하다.
 #
-# Pinned to the 2.x line on purpose:
-#   (a) FastMCP.from_openapi() is a 2.x API and the delegation target,
-#   (b) 2.x is httpx-native, which matches the MCPortal runtime stack,
-#   (c) the "<3" upper bound physically blocks fresh-install drift into 3.x,
-#       where the OpenAPI entrypoint moved to OpenAPIProvider and the HTTP
-#       stack changed.
-# Measured locally on 2026-08-05: fastmcp 2.14.7 on Python 3.11.9 / httpx 0.28.1
-# builds a server and answers a tool call over a replay cassette (no key, no
-# network). W4 promotes this to an exact "==" pin plus a lockfile.
-# anyio is declared explicitly: mcp.py imports `anyio.to_thread` directly for the
-# sync->async transport bridge. httpx pulls anyio in transitively today, but a
-# direct import needs a direct declaration (PEP 508) so W4's exact pin + lockfile
-# constrains it instead of inheriting whatever httpx happens to resolve.
-mcp = ["fastmcp>=2.10,<3", "anyio>=4"]
-dev = ["pytest>=8", "respx>=0.21", "fastmcp>=2.10,<3", "anyio>=4"]
+# ── 상한 근거 정정(W4) ────────────────────────────────────────────────────
+# W3 까지 달려 있던 "<3" 상한의 근거 주석은 **오독이었다**. 그 주석은
+# `FastMCP.from_openapi()` 를 2.x 전용 API 로 적었지만, 업스트림 실측 결과
+# from_openapi 는 3.x 에도 그대로 존재한다. 즉 3.x 를 막을 이유로 제시된
+# 사실 자체가 틀렸다.
+#
+# 실제 호환 경계는 **4.0** 이다. fastmcp 4.0 은 HTTP 스택을 httpx2>=2.5 로,
+# MCP SDK 를 mcp>=2.0 으로 올렸는데, mcportal.mcp 는 동기 httpx.BaseTransport
+# (카세트 재생·쿼터 가드가 걸린 우리 트랜스포트)를 httpx.AsyncBaseTransport 로
+# 감싸 FastMCP 의 AsyncClient 에 밀어 넣는 브리지로 동작한다. 그 브리지는
+# httpx 0.x/1.x 의 AsyncBaseTransport 계약에 붙어 있어 httpx2 로는 성립하지
+# 않는다. 배포 형태도 4.0 에서 fastmcp -> fastmcp-slim 으로 재편돼 같은 이름의
+# 설치물이 같은 내용을 보장하지 않는다. 따라서 의미 있는 상한은 "<4" 이고,
+# 2.x~3.x 구간은 "미검증"이지 "비호환"이 아니다.
+#
+# 그럼에도 이번 릴리스는 범위가 아닌 **정확 핀**을 건다. 우리가 카세트로 실제
+# 통과를 확인한 조합이 하나뿐이기 때문이다 — 2026-08-05 로컬 실측:
+# fastmcp 2.14.7 / Python 3.11.9 / httpx 0.28.1 에서 서버가 만들어지고 리플레이
+# 카세트 위로 도구 호출이 응답했다(키 없음·네트워크 없음). 상한 완화(<4 로의
+# 범위 복원, 3.4.x 지원)는 그 구간을 카세트로 실측한 뒤 v0.3 에서 판단한다.
+# 정확 핀의 재현성은 requirements/lock-py311.txt 가 전이 의존성까지 고정해 받친다.
+#
+# anyio 는 명시 선언이다: mcp.py 가 동기->비동기 트랜스포트 브리지에서
+# `anyio.to_thread` 를 직접 임포트한다. 오늘은 httpx 가 전이적으로 끌어오지만,
+# 직접 임포트에는 직접 선언이 필요하다(PEP 508). 버전 범위를 유지하는 것은
+# 고의다 — 고정은 락파일이 하고, 선언은 "무엇을 직접 쓰는가"만 말한다.
+mcp = ["fastmcp==2.14.7", "anyio>=4"]
+dev = ["pytest>=8", "respx>=0.21", "fastmcp==2.14.7", "anyio>=4"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcportal"]
+
+# ── 프리셋 번들 동봉: 왜 디렉터리가 아니라 파일 단위로 적는가 ──────────────
+# 목표는 `pip install mcportal` 만으로 프리셋 4종이 딸려 오는 것이다.
+# curation.default_presets_root() 의 2순위 후보가 "설치된 패키지 안의
+# mcportal/presets" 이므로, 매핑 목적지는 그 경로여야 한다.
+#
+# 디렉터리 매핑("presets/15000115" = "mcportal/presets/15000115")이 더 짧지만
+# 채택하지 않았다. force-include 로 들어온 파일에는 **exclude 가 걸리지 않기
+# 때문**이다. 추측이 아니라 hatchling 1.31.0 소스 실측이다 —
+# builders/plugin/interface.py 의 recurse_forced_files() 는 디렉터리를 walk 하며
+# 상수 EXCLUDED_DIRECTORIES(__pycache__ 등)·EXCLUDED_FILES(.DS_Store 등) 와
+# config.path_is_reserved() 만 거르고, 일반 파일 선택에 쓰이는
+# config.include_path()/path_is_excluded() 는 **한 번도 호출하지 않는다**
+# (반면 recurse_explicit_files() 는 호출한다 — 둘의 차이가 근거다).
+# 따라서 위 [tool.hatch.build.targets.wheel] 에 exclude 를 아무리 적어도
+# force-include 된 디렉터리 하위는 걸러지지 않는다. exclude 로 막았다고 적는
+# 순간 그 주석이 거짓이 된다.
+#
+# 이게 이론적 위험이 아닌 이유: W4 §3 의 실키 샘플링이 번들 안에
+# `presets/<id>/cassettes/` 와 `presets/<id>/samples/` 를 새로 만든다. 디렉터리
+# 매핑이었다면 그 순간 아무 설정 변경 없이 응답 원문과 카세트가 PyPI wheel 로
+# 실려 나간다(스크러빙을 하더라도 배포 대상이 아니다). 파일 단위 매핑은 새
+# 파일이 여기 한 줄로 명시되기 전에는 절대 wheel 에 들어가지 못하게 한다.
+#
+# 덤: 파일 단위 매핑은 번들 파일이 사라지거나 이름이 바뀌면 빌드가
+# `FileNotFoundError: Forced include not found:` 로 즉시 죽는다. 조용히 빠진
+# wheel 이 나가는 것보다 빌드가 깨지는 편이 낫다(번들 무결성 검사 겸용).
+#
+# 실린 것: 번들 4종 × {source,curation,openapi}.json + README.md = 16 파일,
+# 프리셋 루트 문서 2 파일. 실리지 않는 것: _raw/·_transcribed/(원문 증거물,
+# 포털 스냅샷·관세청 xlsx 저작권 판단 대상)·_MANIFEST_*.json·cassettes/·
+# samples/·sampled_schemas.json(실키 샘플링 증거·측정 데이터 — wheel 의
+# openapi.json 은 이미 확정 스키마를 담은 완성품이고, 재현·검증(compile
+# --check)은 리포 체크아웃 워크플로우다. 경계: wheel=소비, 리포=재현 전체).
+[tool.hatch.build.targets.wheel.force-include]
+"presets/README.md" = "mcportal/presets/README.md"
+"presets/NOTICE-DATA.md" = "mcportal/presets/NOTICE-DATA.md"
+
+"presets/15000115/source.json" = "mcportal/presets/15000115/source.json"
+"presets/15000115/curation.json" = "mcportal/presets/15000115/curation.json"
+"presets/15000115/openapi.json" = "mcportal/presets/15000115/openapi.json"
+"presets/15000115/README.md" = "mcportal/presets/15000115/README.md"
+
+"presets/15081808/source.json" = "mcportal/presets/15081808/source.json"
+"presets/15081808/curation.json" = "mcportal/presets/15081808/curation.json"
+"presets/15081808/openapi.json" = "mcportal/presets/15081808/openapi.json"
+"presets/15081808/README.md" = "mcportal/presets/15081808/README.md"
+
+"presets/15101612/source.json" = "mcportal/presets/15101612/source.json"
+"presets/15101612/curation.json" = "mcportal/presets/15101612/curation.json"
+"presets/15101612/openapi.json" = "mcportal/presets/15101612/openapi.json"
+"presets/15101612/README.md" = "mcportal/presets/15101612/README.md"
+
+"presets/15102108/source.json" = "mcportal/presets/15102108/source.json"
+"presets/15102108/curation.json" = "mcportal/presets/15102108/curation.json"
+"presets/15102108/openapi.json" = "mcportal/presets/15102108/openapi.json"
+"presets/15102108/README.md" = "mcportal/presets/15102108/README.md"
 
 [tool.hatch.build.targets.sdist]
 # wheel 은 packages 로 좁혀 놨지만 sdist 는 기본값이 "gitignore 만 존중하고 리포
@@ -60,9 +139,17 @@ packages = ["src/mcportal"]
 # 있어 데이터셋 이용허락범위와는 별개의 저작권 판단이 필요한 파일들이다.
 # 프리셋 번들 4종을 배포에 실을지는 W4 결정 사항이므로, 여기서는 최소한 원문
 # 증거물과 벤치마크 결과를 명시적으로 차단해 둔다.
+#
+# W4 추가: cassettes/·samples/ 도 막는다. wheel 쪽은 위 force-include 를 파일
+# 단위로 적어 원천 차단했지만, sdist 는 "리포 전체를 담는" 기본값이라 실키
+# 샘플링 산출물이 생기는 순간 아무 설정 변경 없이 PyPI 로 따라 나간다. 문은
+# 두 개인데 한쪽만 잠그면 잠그지 않은 것과 같다. (sdist 는 일반 파일 선택
+# 경로라 wheel 의 force-include 와 달리 exclude 가 정상 작동한다.)
 exclude = [
     "presets/_raw",
     "presets/_transcribed",
+    "presets/*/cassettes",
+    "presets/*/samples",
     "benchmarks/results",
     "dist",
 ]

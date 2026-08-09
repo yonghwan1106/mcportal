@@ -1,0 +1,2254 @@
+{
+  "response": {
+    "body": {
+      "items": {
+        "item": [
+          {
+            "balPayments": "2584954657",
+            "expCnt": "174200",
+            "expDlr": "9480539843",
+            "impCnt": "233365",
+            "impDlr": "6895585186",
+            "statCd": "CN",
+            "statCdCntnKor1": "중국",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1712643409",
+            "expCnt": "65901",
+            "expDlr": "5040734289",
+            "impCnt": "479142",
+            "impDlr": "3328090880",
+            "statCd": "US",
+            "statCdCntnKor1": "미국",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "2011279610",
+            "expCnt": "28348",
+            "expDlr": "2113289285",
+            "impCnt": "19490",
+            "impDlr": "102009675",
+            "statCd": "HK",
+            "statCdCntnKor1": "홍콩",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1149633690",
+            "expCnt": "38973",
+            "expDlr": "1984725205",
+            "impCnt": "19476",
+            "impDlr": "835091515",
+            "statCd": "VN",
+            "statCdCntnKor1": "베트남",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-1296238502",
+            "expCnt": "50833",
+            "expDlr": "1792002099",
+            "impCnt": "81852",
+            "impDlr": "3088240601",
+            "statCd": "JP",
+            "statCdCntnKor1": "일본",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "507342952",
+            "expCnt": "15462",
+            "expDlr": "1014088717",
+            "impCnt": "11820",
+            "impDlr": "506745765",
+            "statCd": "SG",
+            "statCdCntnKor1": "싱가포르",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "560235310",
+            "expCnt": "16324",
+            "expDlr": "876748886",
+            "impCnt": "6609",
+            "impDlr": "316513576",
+            "statCd": "IN",
+            "statCdCntnKor1": "인도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-390433900",
+            "expCnt": "17261",
+            "expDlr": "819716244",
+            "impCnt": "22126",
+            "impDlr": "1210150144",
+            "statCd": "TW",
+            "statCdCntnKor1": "대만",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-656589257",
+            "expCnt": "8018",
+            "expDlr": "661465875",
+            "impCnt": "21805",
+            "impDlr": "1318055132",
+            "statCd": "AU",
+            "statCdCntnKor1": "호주",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "606712771",
+            "expCnt": "24",
+            "expDlr": "649845574",
+            "impCnt": "1",
+            "impDlr": "43132803",
+            "statCd": "MH",
+            "statCdCntnKor1": "마샬군도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "338152563",
+            "expCnt": "9549",
+            "expDlr": "626734903",
+            "impCnt": "5191",
+            "impDlr": "288582340",
+            "statCd": "MX",
+            "statCdCntnKor1": "멕시코",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-175464474",
+            "expCnt": "13797",
+            "expDlr": "552897306",
+            "impCnt": "6806",
+            "impDlr": "728361780",
+            "statCd": "ID",
+            "statCdCntnKor1": "인도네시아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "313377816",
+            "expCnt": "8814",
+            "expDlr": "524063939",
+            "impCnt": "6379",
+            "impDlr": "210686123",
+            "statCd": "PH",
+            "statCdCntnKor1": "필리핀",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "135168716",
+            "expCnt": "12720",
+            "expDlr": "458372510",
+            "impCnt": "8792",
+            "impDlr": "323203794",
+            "statCd": "TH",
+            "statCdCntnKor1": "태국",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-1186876045",
+            "expCnt": "11373",
+            "expDlr": "451720100",
+            "impCnt": "120894",
+            "impDlr": "1638596145",
+            "statCd": "DE",
+            "statCdCntnKor1": "독일",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "450132165",
+            "expCnt": "27",
+            "expDlr": "450150744",
+            "impCnt": "8",
+            "impDlr": "18579",
+            "statCd": "LR",
+            "statCdCntnKor1": "라이베리아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "397391498",
+            "expCnt": "4548",
+            "expDlr": "446614367",
+            "impCnt": "1805",
+            "impDlr": "49222869",
+            "statCd": "TR",
+            "statCdCntnKor1": "튀르키예",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-197363257",
+            "expCnt": "10001",
+            "expDlr": "431855074",
+            "impCnt": "10118",
+            "impDlr": "629218331",
+            "statCd": "MY",
+            "statCdCntnKor1": "말레이시아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-77252192",
+            "expCnt": "6566",
+            "expDlr": "413489337",
+            "impCnt": "595",
+            "impDlr": "490741529",
+            "statCd": "AE",
+            "statCdCntnKor1": "아랍에미리트 연합",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-514081101",
+            "expCnt": "2821",
+            "expDlr": "395575780",
+            "impCnt": "460",
+            "impDlr": "909656881",
+            "statCd": "SA",
+            "statCdCntnKor1": "사우디아라비아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-44284403",
+            "expCnt": "6680",
+            "expDlr": "390382012",
+            "impCnt": "20983",
+            "impDlr": "434666415",
+            "statCd": "GB",
+            "statCdCntnKor1": "영국",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-65978713",
+            "expCnt": "5791",
+            "expDlr": "325051841",
+            "impCnt": "7336",
+            "impDlr": "391030554",
+            "statCd": "CA",
+            "statCdCntnKor1": "캐나다",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-72668337",
+            "expCnt": "5601",
+            "expDlr": "288870078",
+            "impCnt": "1718",
+            "impDlr": "361538415",
+            "statCd": "BR",
+            "statCdCntnKor1": "브라질",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-484765748",
+            "expCnt": "4382",
+            "expDlr": "287031249",
+            "impCnt": "1504",
+            "impDlr": "771796997",
+            "statCd": "RU",
+            "statCdCntnKor1": "러시아 연방",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "206620589",
+            "expCnt": "1799",
+            "expDlr": "286779763",
+            "impCnt": "2143",
+            "impDlr": "80159174",
+            "statCd": "BE",
+            "statCdCntnKor1": "벨기에",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "268806369",
+            "expCnt": "2077",
+            "expDlr": "282581565",
+            "impCnt": "543",
+            "impDlr": "13775196",
+            "statCd": "SK",
+            "statCdCntnKor1": "슬로바키아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-285544181",
+            "expCnt": "4858",
+            "expDlr": "270494715",
+            "impCnt": "22264",
+            "impDlr": "556038896",
+            "statCd": "IT",
+            "statCdCntnKor1": "이탈리아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "200394071",
+            "expCnt": "5412",
+            "expDlr": "246550282",
+            "impCnt": "1505",
+            "impDlr": "46156211",
+            "statCd": "PL",
+            "statCdCntnKor1": "폴란드",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-178986167",
+            "expCnt": "4371",
+            "expDlr": "245331510",
+            "impCnt": "12578",
+            "impDlr": "424317677",
+            "statCd": "FR",
+            "statCdCntnKor1": "프랑스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-291570350",
+            "expCnt": "6056",
+            "expDlr": "235413981",
+            "impCnt": "3639",
+            "impDlr": "526984331",
+            "statCd": "NL",
+            "statCdCntnKor1": "네덜란드",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "197214234",
+            "expCnt": "655",
+            "expDlr": "225800632",
+            "impCnt": "92",
+            "impDlr": "28586398",
+            "statCd": "PA",
+            "statCdCntnKor1": "파나마",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "218344861",
+            "expCnt": "8",
+            "expDlr": "218344861",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "BM",
+            "statCdCntnKor1": "버뮤다",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "200720537",
+            "expCnt": "35",
+            "expDlr": "200727995",
+            "impCnt": "3",
+            "impDlr": "7458",
+            "statCd": "BS",
+            "statCdCntnKor1": "바하마",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "18442215",
+            "expCnt": "3407",
+            "expDlr": "177484317",
+            "impCnt": "4205",
+            "impDlr": "159042102",
+            "statCd": "ES",
+            "statCdCntnKor1": "스페인",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-53054910",
+            "expCnt": "1606",
+            "expDlr": "163519246",
+            "impCnt": "147",
+            "impDlr": "216574156",
+            "statCd": "IR",
+            "statCdCntnKor1": "이란",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "140295498",
+            "expCnt": "750",
+            "expDlr": "159134821",
+            "impCnt": "241",
+            "impDlr": "18839323",
+            "statCd": "GR",
+            "statCdCntnKor1": "그리스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "113705940",
+            "expCnt": "1763",
+            "expDlr": "158645181",
+            "impCnt": "1575",
+            "impDlr": "44939241",
+            "statCd": "CZ",
+            "statCdCntnKor1": "체코공화국",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "140102441",
+            "expCnt": "224",
+            "expDlr": "157113227",
+            "impCnt": "126",
+            "impDlr": "17010786",
+            "statCd": "MT",
+            "statCdCntnKor1": "몰타",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-163334819",
+            "expCnt": "667",
+            "expDlr": "138563436",
+            "impCnt": "24",
+            "impDlr": "301898255",
+            "statCd": "IQ",
+            "statCdCntnKor1": "이라크",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "119973827",
+            "expCnt": "2674",
+            "expDlr": "137086425",
+            "impCnt": "156",
+            "impDlr": "17112598",
+            "statCd": "EG",
+            "statCdCntnKor1": "이집트",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "124324478",
+            "expCnt": "538",
+            "expDlr": "131013834",
+            "impCnt": "269",
+            "impDlr": "6689356",
+            "statCd": "SI",
+            "statCdCntnKor1": "슬로베니아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "16572651",
+            "expCnt": "2087",
+            "expDlr": "120821717",
+            "impCnt": "1463",
+            "impDlr": "104249066",
+            "statCd": "IL",
+            "statCdCntnKor1": "이스라엘",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-187873626",
+            "expCnt": "1650",
+            "expDlr": "93466246",
+            "impCnt": "1387",
+            "impDlr": "281339872",
+            "statCd": "CL",
+            "statCdCntnKor1": "칠레",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-2034053",
+            "expCnt": "1601",
+            "expDlr": "88796104",
+            "impCnt": "17507",
+            "impDlr": "90830157",
+            "statCd": "NZ",
+            "statCdCntnKor1": "뉴질랜드",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "54989402",
+            "expCnt": "2750",
+            "expDlr": "84605820",
+            "impCnt": "757",
+            "impDlr": "29616418",
+            "statCd": "BD",
+            "statCdCntnKor1": "방글라데시",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "22519968",
+            "expCnt": "879",
+            "expDlr": "73884629",
+            "impCnt": "370",
+            "impDlr": "51364661",
+            "statCd": "AR",
+            "statCdCntnKor1": "아르헨티나",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-43540370",
+            "expCnt": "1227",
+            "expDlr": "73754341",
+            "impCnt": "2368",
+            "impDlr": "117294711",
+            "statCd": "SE",
+            "statCdCntnKor1": "스웨덴",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "60879651",
+            "expCnt": "1054",
+            "expDlr": "73604982",
+            "impCnt": "316",
+            "impDlr": "12725331",
+            "statCd": "CO",
+            "statCdCntnKor1": "콜롬비아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "34526402",
+            "expCnt": "1096",
+            "expDlr": "73067896",
+            "impCnt": "630",
+            "impDlr": "38541494",
+            "statCd": "MM",
+            "statCdCntnKor1": "미얀마",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "12755927",
+            "expCnt": "1384",
+            "expDlr": "68741716",
+            "impCnt": "1461",
+            "impDlr": "55985789",
+            "statCd": "HU",
+            "statCdCntnKor1": "헝가리",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-33365229",
+            "expCnt": "977",
+            "expDlr": "67579806",
+            "impCnt": "511",
+            "impDlr": "100945035",
+            "statCd": "PE",
+            "statCdCntnKor1": "페루",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "41913419",
+            "expCnt": "1573",
+            "expDlr": "61287262",
+            "impCnt": "666",
+            "impDlr": "19373843",
+            "statCd": "PK",
+            "statCdCntnKor1": "파키스탄",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-51634254",
+            "expCnt": "1726",
+            "expDlr": "55340000",
+            "impCnt": "503",
+            "impDlr": "106974254",
+            "statCd": "ZA",
+            "statCdCntnKor1": "남아프리카공화국",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "52418073",
+            "expCnt": "656",
+            "expDlr": "53581756",
+            "impCnt": "39",
+            "impDlr": "1163683",
+            "statCd": "UZ",
+            "statCdCntnKor1": "우즈베키스탄",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "17018902",
+            "expCnt": "296",
+            "expDlr": "53426530",
+            "impCnt": "9",
+            "impDlr": "36407628",
+            "statCd": "DZ",
+            "statCdCntnKor1": "알제리",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "49506907",
+            "expCnt": "2132",
+            "expDlr": "51752528",
+            "impCnt": "41",
+            "impDlr": "2245621",
+            "statCd": "JO",
+            "statCdCntnKor1": "요르단",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-329455002",
+            "expCnt": "650",
+            "expDlr": "50741171",
+            "impCnt": "63",
+            "impDlr": "380196173",
+            "statCd": "KW",
+            "statCdCntnKor1": "쿠웨이트",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-27242960",
+            "expCnt": "2090",
+            "expDlr": "50317043",
+            "impCnt": "2671",
+            "impDlr": "77560003",
+            "statCd": "AT",
+            "statCdCntnKor1": "오스트리아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "50246060",
+            "expCnt": "1",
+            "expDlr": "50246127",
+            "impCnt": "2",
+            "impDlr": "67",
+            "statCd": "IM",
+            "statCdCntnKor1": "맨섬",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "29565014",
+            "expCnt": "2216",
+            "expDlr": "49272141",
+            "impCnt": "462",
+            "impDlr": "19707127",
+            "statCd": "KH",
+            "statCdCntnKor1": "캄보디아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-108730673",
+            "expCnt": "859",
+            "expDlr": "47025754",
+            "impCnt": "3421",
+            "impDlr": "155756427",
+            "statCd": "CH",
+            "statCdCntnKor1": "스위스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-4787783",
+            "expCnt": "952",
+            "expDlr": "43096249",
+            "impCnt": "1274",
+            "impDlr": "47884032",
+            "statCd": "RO",
+            "statCdCntnKor1": "루마니아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-57318431",
+            "expCnt": "423",
+            "expDlr": "38132189",
+            "impCnt": "88",
+            "impDlr": "95450620",
+            "statCd": "NG",
+            "statCdCntnKor1": "나이지리아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "20281789",
+            "expCnt": "732",
+            "expDlr": "36839095",
+            "impCnt": "1668",
+            "impDlr": "16557306",
+            "statCd": "PT",
+            "statCdCntnKor1": "포루투갈",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-839837484",
+            "expCnt": "445",
+            "expDlr": "36394325",
+            "impCnt": "124",
+            "impDlr": "876231809",
+            "statCd": "QA",
+            "statCdCntnKor1": "카타르",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "31943862",
+            "expCnt": "901",
+            "expDlr": "33280003",
+            "impCnt": "14",
+            "impDlr": "1336141",
+            "statCd": "YE",
+            "statCdCntnKor1": "예맨",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "32215999",
+            "expCnt": "98",
+            "expDlr": "32716498",
+            "impCnt": "5",
+            "impDlr": "500499",
+            "statCd": "AO",
+            "statCdCntnKor1": "앙골라",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-33169669",
+            "expCnt": "937",
+            "expDlr": "29601094",
+            "impCnt": "2341",
+            "impDlr": "62770763",
+            "statCd": "DK",
+            "statCdCntnKor1": "덴마크",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-4263359",
+            "expCnt": "3606",
+            "expDlr": "29258781",
+            "impCnt": "27",
+            "impDlr": "33522140",
+            "statCd": "LY",
+            "statCdCntnKor1": "리비아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "10762674",
+            "expCnt": "306",
+            "expDlr": "25690000",
+            "impCnt": "276",
+            "impDlr": "14927326",
+            "statCd": "MA",
+            "statCdCntnKor1": "모로코",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-220866876",
+            "expCnt": "349",
+            "expDlr": "23305212",
+            "impCnt": "79",
+            "impDlr": "244172088",
+            "statCd": "OM",
+            "statCdCntnKor1": "오만",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "19479922",
+            "expCnt": "117",
+            "expDlr": "22473492",
+            "impCnt": "33",
+            "impDlr": "2993570",
+            "statCd": "VE",
+            "statCdCntnKor1": "베네주엘라",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "14316124",
+            "expCnt": "1097",
+            "expDlr": "21892769",
+            "impCnt": "385",
+            "impDlr": "7576645",
+            "statCd": "LK",
+            "statCdCntnKor1": "스리랑카",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-71270936",
+            "expCnt": "609",
+            "expDlr": "21399856",
+            "impCnt": "1108",
+            "impDlr": "92670792",
+            "statCd": "FI",
+            "statCdCntnKor1": "핀란드",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "13603544",
+            "expCnt": "496",
+            "expDlr": "20487331",
+            "impCnt": "191",
+            "impDlr": "6883787",
+            "statCd": "GT",
+            "statCdCntnKor1": "과테말라",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "14644616",
+            "expCnt": "383",
+            "expDlr": "20248605",
+            "impCnt": "135",
+            "impDlr": "5603989",
+            "statCd": "EC",
+            "statCdCntnKor1": "에쿠아도르",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "13275721",
+            "expCnt": "269",
+            "expDlr": "20100055",
+            "impCnt": "457",
+            "impDlr": "6824334",
+            "statCd": "LT",
+            "statCdCntnKor1": "리투아니아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "19486783",
+            "expCnt": "98",
+            "expDlr": "19810656",
+            "impCnt": "10",
+            "impDlr": "323873",
+            "statCd": "FJ",
+            "statCdCntnKor1": "피지",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "11299005",
+            "expCnt": "528",
+            "expDlr": "19288193",
+            "impCnt": "42",
+            "impDlr": "7989188",
+            "statCd": "KZ",
+            "statCdCntnKor1": "카자흐스탄",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "19242463",
+            "expCnt": "119",
+            "expDlr": "19243185",
+            "impCnt": "0",
+            "impDlr": "722",
+            "statCd": "TM",
+            "statCdCntnKor1": "투르크멘",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "18585465",
+            "expCnt": "136",
+            "expDlr": "19179492",
+            "impCnt": "98",
+            "impDlr": "594027",
+            "statCd": "HR",
+            "statCdCntnKor1": "크로아티아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "10979328",
+            "expCnt": "245",
+            "expDlr": "18846075",
+            "impCnt": "250",
+            "impDlr": "7866747",
+            "statCd": "CR",
+            "statCdCntnKor1": "코스타리카",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "12984614",
+            "expCnt": "661",
+            "expDlr": "18751033",
+            "impCnt": "104",
+            "impDlr": "5766419",
+            "statCd": "DO",
+            "statCdCntnKor1": "도미니카 공화국",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-62976084",
+            "expCnt": "347",
+            "expDlr": "17816262",
+            "impCnt": "1089",
+            "impDlr": "80792346",
+            "statCd": "IE",
+            "statCdCntnKor1": "아일랜드",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "16420590",
+            "expCnt": "380",
+            "expDlr": "16422761",
+            "impCnt": "2",
+            "impDlr": "2171",
+            "statCd": "SY",
+            "statCdCntnKor1": "시리아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-3050313",
+            "expCnt": "111",
+            "expDlr": "15371546",
+            "impCnt": "132",
+            "impDlr": "18421859",
+            "statCd": "PR",
+            "statCdCntnKor1": "푸에르토리코",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-21516478",
+            "expCnt": "236",
+            "expDlr": "14429859",
+            "impCnt": "63",
+            "impDlr": "35946337",
+            "statCd": "BH",
+            "statCdCntnKor1": "바레인",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "12350816",
+            "expCnt": "701",
+            "expDlr": "14308069",
+            "impCnt": "20",
+            "impDlr": "1957253",
+            "statCd": "GH",
+            "statCdCntnKor1": "가나",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-31559186",
+            "expCnt": "618",
+            "expDlr": "14026790",
+            "impCnt": "183",
+            "impDlr": "45585976",
+            "statCd": "UA",
+            "statCdCntnKor1": "우크라이나",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "11612217",
+            "expCnt": "862",
+            "expDlr": "12510475",
+            "impCnt": "1050",
+            "impDlr": "898258",
+            "statCd": "MN",
+            "statCdCntnKor1": "몽골",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "12458976",
+            "expCnt": "64",
+            "expDlr": "12460706",
+            "impCnt": "3",
+            "impDlr": "1730",
+            "statCd": "AZ",
+            "statCdCntnKor1": "아제르바이잔",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "11440330",
+            "expCnt": "217",
+            "expDlr": "12322370",
+            "impCnt": "31",
+            "impDlr": "882040",
+            "statCd": "NI",
+            "statCdCntnKor1": "니카라과",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "4492996",
+            "expCnt": "80",
+            "expDlr": "11693285",
+            "impCnt": "4",
+            "impDlr": "7200289",
+            "statCd": "NC",
+            "statCdCntnKor1": "뉴 칼레도니아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "10646486",
+            "expCnt": "90",
+            "expDlr": "11246357",
+            "impCnt": "15",
+            "impDlr": "599871",
+            "statCd": "GE",
+            "statCdCntnKor1": "조지아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "5745919",
+            "expCnt": "330",
+            "expDlr": "10768498",
+            "impCnt": "393",
+            "impDlr": "5022579",
+            "statCd": "BG",
+            "statCdCntnKor1": "불가리아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "10254181",
+            "expCnt": "242",
+            "expDlr": "10747966",
+            "impCnt": "15",
+            "impDlr": "493785",
+            "statCd": "SD",
+            "statCdCntnKor1": "수단",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "7987421",
+            "expCnt": "147",
+            "expDlr": "10014570",
+            "impCnt": "143",
+            "impDlr": "2027149",
+            "statCd": "ET",
+            "statCdCntnKor1": "에티오피아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-18244803",
+            "expCnt": "98",
+            "expDlr": "9828235",
+            "impCnt": "32",
+            "impDlr": "28073038",
+            "statCd": "TT",
+            "statCdCntnKor1": "트리니다드 토바고",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "8535724",
+            "expCnt": "251",
+            "expDlr": "9642393",
+            "impCnt": "32",
+            "impDlr": "1106669",
+            "statCd": "LB",
+            "statCdCntnKor1": "레바논",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "8684704",
+            "expCnt": "109",
+            "expDlr": "9445770",
+            "impCnt": "50",
+            "impDlr": "761066",
+            "statCd": "RS",
+            "statCdCntnKor1": "세르비아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-2457076",
+            "expCnt": "130",
+            "expDlr": "9283903",
+            "impCnt": "44",
+            "impDlr": "11740979",
+            "statCd": "PY",
+            "statCdCntnKor1": "파라과이",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "8701602",
+            "expCnt": "139",
+            "expDlr": "9271134",
+            "impCnt": "59",
+            "impDlr": "569532",
+            "statCd": "SV",
+            "statCdCntnKor1": "엘살바도르",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "8799155",
+            "expCnt": "150",
+            "expDlr": "9172733",
+            "impCnt": "23",
+            "impDlr": "373578",
+            "statCd": "TZ",
+            "statCdCntnKor1": "탄자니아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "7791608",
+            "expCnt": "107",
+            "expDlr": "8792518",
+            "impCnt": "56",
+            "impDlr": "1000910",
+            "statCd": "HN",
+            "statCdCntnKor1": "온두라스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "7396300",
+            "expCnt": "184",
+            "expDlr": "8552640",
+            "impCnt": "17",
+            "impDlr": "1156340",
+            "statCd": "CI",
+            "statCdCntnKor1": "코트디봐르",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-181642285",
+            "expCnt": "394",
+            "expDlr": "8318333",
+            "impCnt": "2166",
+            "impDlr": "189960618",
+            "statCd": "NO",
+            "statCdCntnKor1": "노르웨이",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "6346332",
+            "expCnt": "185",
+            "expDlr": "8247165",
+            "impCnt": "54",
+            "impDlr": "1900833",
+            "statCd": "KE",
+            "statCdCntnKor1": "케냐",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-2470608",
+            "expCnt": "212",
+            "expDlr": "7381519",
+            "impCnt": "76",
+            "impDlr": "9852127",
+            "statCd": "UY",
+            "statCdCntnKor1": "우루과이",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "6423280",
+            "expCnt": "64",
+            "expDlr": "7092092",
+            "impCnt": "7",
+            "impDlr": "668812",
+            "statCd": "CU",
+            "statCdCntnKor1": "쿠바",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-5673329",
+            "expCnt": "171",
+            "expDlr": "7006199",
+            "impCnt": "196",
+            "impDlr": "12679528",
+            "statCd": "TN",
+            "statCdCntnKor1": "튀니지",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "6833922",
+            "expCnt": "107",
+            "expDlr": "6833922",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "PS",
+            "statCdCntnKor1": "팔레스타인 해방기구",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1237937",
+            "expCnt": "76",
+            "expDlr": "6592204",
+            "impCnt": "23",
+            "impDlr": "5354267",
+            "statCd": "PG",
+            "statCdCntnKor1": "파푸아 뉴기니",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "4952305",
+            "expCnt": "157",
+            "expDlr": "5898505",
+            "impCnt": "41",
+            "impDlr": "946200",
+            "statCd": "LA",
+            "statCdCntnKor1": "라오스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "5665029",
+            "expCnt": "62",
+            "expDlr": "5695434",
+            "impCnt": "1",
+            "impDlr": "30405",
+            "statCd": "DJ",
+            "statCdCntnKor1": "지부티",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-63810684",
+            "expCnt": "123",
+            "expDlr": "5680843",
+            "impCnt": "36",
+            "impDlr": "69491527",
+            "statCd": "BN",
+            "statCdCntnKor1": "브루나이",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-3148710",
+            "expCnt": "97",
+            "expDlr": "5286983",
+            "impCnt": "24",
+            "impDlr": "8435693",
+            "statCd": "BO",
+            "statCdCntnKor1": "볼리비아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "774982",
+            "expCnt": "196",
+            "expDlr": "5268112",
+            "impCnt": "144",
+            "impDlr": "4493130",
+            "statCd": "LV",
+            "statCdCntnKor1": "라트비아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "5173895",
+            "expCnt": "32",
+            "expDlr": "5173962",
+            "impCnt": "0",
+            "impDlr": "67",
+            "statCd": "FM",
+            "statCdCntnKor1": "마이크로네시아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "2045988",
+            "expCnt": "14",
+            "expDlr": "4475887",
+            "impCnt": "8",
+            "impDlr": "2429899",
+            "statCd": "SB",
+            "statCdCntnKor1": "솔로몬 군도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-1257885",
+            "expCnt": "183",
+            "expDlr": "4170389",
+            "impCnt": "200",
+            "impDlr": "5428274",
+            "statCd": "EE",
+            "statCdCntnKor1": "에스토니아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "700411",
+            "expCnt": "37",
+            "expDlr": "3922564",
+            "impCnt": "89",
+            "impDlr": "3222153",
+            "statCd": "IS",
+            "statCdCntnKor1": "아이슬란드",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "993875",
+            "expCnt": "104",
+            "expDlr": "3495175",
+            "impCnt": "53",
+            "impDlr": "2501300",
+            "statCd": "SN",
+            "statCdCntnKor1": "세네갈",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "3455583",
+            "expCnt": "35",
+            "expDlr": "3455583",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "RE",
+            "statCdCntnKor1": "불령 리유니온 코모도 제도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "3347075",
+            "expCnt": "302",
+            "expDlr": "3390030",
+            "impCnt": "13",
+            "impDlr": "42955",
+            "statCd": "GU",
+            "statCdCntnKor1": "괌",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "3185071",
+            "expCnt": "81",
+            "expDlr": "3331364",
+            "impCnt": "13",
+            "impDlr": "146293",
+            "statCd": "HT",
+            "statCdCntnKor1": "아이티",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "3175811",
+            "expCnt": "237",
+            "expDlr": "3176938",
+            "impCnt": "2",
+            "impDlr": "1127",
+            "statCd": "KG",
+            "statCdCntnKor1": "키르기스스탄",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "2073481",
+            "expCnt": "151",
+            "expDlr": "3174751",
+            "impCnt": "32",
+            "impDlr": "1101270",
+            "statCd": "MO",
+            "statCdCntnKor1": "마카오",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-1950416",
+            "expCnt": "33",
+            "expDlr": "2803476",
+            "impCnt": "82",
+            "impDlr": "4753892",
+            "statCd": "GN",
+            "statCdCntnKor1": "기니",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "2790032",
+            "expCnt": "21",
+            "expDlr": "2791894",
+            "impCnt": "1",
+            "impDlr": "1862",
+            "statCd": "WS",
+            "statCdCntnKor1": "사모아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "2553328",
+            "expCnt": "37",
+            "expDlr": "2738160",
+            "impCnt": "5",
+            "impDlr": "184832",
+            "statCd": "BJ",
+            "statCdCntnKor1": "베닝",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-1175726",
+            "expCnt": "76",
+            "expDlr": "2513914",
+            "impCnt": "28",
+            "impDlr": "3689640",
+            "statCd": "BY",
+            "statCdCntnKor1": "벨라루스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "2333057",
+            "expCnt": "40",
+            "expDlr": "2452127",
+            "impCnt": "63",
+            "impDlr": "119070",
+            "statCd": "MZ",
+            "statCdCntnKor1": "모잠비크",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "2079129",
+            "expCnt": "62",
+            "expDlr": "2441465",
+            "impCnt": "15",
+            "impDlr": "362336",
+            "statCd": "CM",
+            "statCdCntnKor1": "카메룬",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-17142873",
+            "expCnt": "91",
+            "expDlr": "2302269",
+            "impCnt": "14",
+            "impDlr": "19445142",
+            "statCd": "CY",
+            "statCdCntnKor1": "사이프러스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "2094142",
+            "expCnt": "111",
+            "expDlr": "2094142",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "AF",
+            "statCdCntnKor1": "아프카니스탄",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-37778497",
+            "expCnt": "23",
+            "expDlr": "1971131",
+            "impCnt": "371",
+            "impDlr": "39749628",
+            "statCd": "ZZ",
+            "statCdCntnKor1": "기타국",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1277600",
+            "expCnt": "109",
+            "expDlr": "1914228",
+            "impCnt": "24",
+            "impDlr": "636628",
+            "statCd": "MU",
+            "statCdCntnKor1": "모리셔스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1833187",
+            "expCnt": "21",
+            "expDlr": "1833187",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "AW",
+            "statCdCntnKor1": "아루바",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-34034716",
+            "expCnt": "24",
+            "expDlr": "1713918",
+            "impCnt": "56",
+            "impDlr": "35748634",
+            "statCd": "CD",
+            "statCdCntnKor1": "콩고민주공화국",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1535175",
+            "expCnt": "33",
+            "expDlr": "1662511",
+            "impCnt": "18",
+            "impDlr": "127336",
+            "statCd": "AL",
+            "statCdCntnKor1": "알바니아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1471652",
+            "expCnt": "16",
+            "expDlr": "1509471",
+            "impCnt": "0",
+            "impDlr": "37819",
+            "statCd": "BF",
+            "statCdCntnKor1": "부르키나 파소",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-3097651",
+            "expCnt": "96",
+            "expDlr": "1502387",
+            "impCnt": "46",
+            "impDlr": "4600038",
+            "statCd": "MG",
+            "statCdCntnKor1": "마다카스카르",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1466121",
+            "expCnt": "34",
+            "expDlr": "1492067",
+            "impCnt": "4",
+            "impDlr": "25946",
+            "statCd": "AN",
+            "statCdCntnKor1": "네덜란드 열도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1367491",
+            "expCnt": "104",
+            "expDlr": "1467544",
+            "impCnt": "48",
+            "impDlr": "100053",
+            "statCd": "NP",
+            "statCdCntnKor1": "네팔",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1349631",
+            "expCnt": "33",
+            "expDlr": "1402702",
+            "impCnt": "6",
+            "impDlr": "53071",
+            "statCd": "ZW",
+            "statCdCntnKor1": "짐바브웨",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-5877276",
+            "expCnt": "50",
+            "expDlr": "1325262",
+            "impCnt": "4",
+            "impDlr": "7202538",
+            "statCd": "ZM",
+            "statCdCntnKor1": "잠비아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1041848",
+            "expCnt": "30",
+            "expDlr": "1281061",
+            "impCnt": "4",
+            "impDlr": "239213",
+            "statCd": "CG",
+            "statCdCntnKor1": "콩고",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "728336",
+            "expCnt": "17",
+            "expDlr": "1238912",
+            "impCnt": "6",
+            "impDlr": "510576",
+            "statCd": "SO",
+            "statCdCntnKor1": "소말리아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1091116",
+            "expCnt": "119",
+            "expDlr": "1102051",
+            "impCnt": "3",
+            "impDlr": "10935",
+            "statCd": "MP",
+            "statCdCntnKor1": "북마리아나 군도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1061890",
+            "expCnt": "36",
+            "expDlr": "1079461",
+            "impCnt": "3",
+            "impDlr": "17571",
+            "statCd": "SC",
+            "statCdCntnKor1": "세이쉘",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "1071448",
+            "expCnt": "122",
+            "expDlr": "1072726",
+            "impCnt": "1",
+            "impDlr": "1278",
+            "statCd": "TJ",
+            "statCdCntnKor1": "타지크",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-3081981",
+            "expCnt": "65",
+            "expDlr": "1017930",
+            "impCnt": "54",
+            "impDlr": "4099911",
+            "statCd": "TG",
+            "statCdCntnKor1": "토고",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "552956",
+            "expCnt": "22",
+            "expDlr": "962467",
+            "impCnt": "10",
+            "impDlr": "409511",
+            "statCd": "UG",
+            "statCdCntnKor1": "우간다",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "927067",
+            "expCnt": "11",
+            "expDlr": "960907",
+            "impCnt": "1",
+            "impDlr": "33840",
+            "statCd": "TL",
+            "statCdCntnKor1": "티모르",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "810479",
+            "expCnt": "46",
+            "expDlr": "892784",
+            "impCnt": "8",
+            "impDlr": "82305",
+            "statCd": "JM",
+            "statCdCntnKor1": "자마이카",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "778056",
+            "expCnt": "20",
+            "expDlr": "802443",
+            "impCnt": "1",
+            "impDlr": "24387",
+            "statCd": "BB",
+            "statCdCntnKor1": "바베이도스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "714218",
+            "expCnt": "13",
+            "expDlr": "771085",
+            "impCnt": "2",
+            "impDlr": "56867",
+            "statCd": "BW",
+            "statCdCntnKor1": "보츠와나",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-62618858",
+            "expCnt": "7",
+            "expDlr": "737240",
+            "impCnt": "4",
+            "impDlr": "63356098",
+            "statCd": "GQ",
+            "statCdCntnKor1": "적도 기니",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-5242726",
+            "expCnt": "66",
+            "expDlr": "669630",
+            "impCnt": "172",
+            "impDlr": "5912356",
+            "statCd": "LU",
+            "statCdCntnKor1": "룩셈부르그",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "657770",
+            "expCnt": "8",
+            "expDlr": "657770",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "AG",
+            "statCdCntnKor1": "안티가 바부다",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-1023384",
+            "expCnt": "17",
+            "expDlr": "646555",
+            "impCnt": "11",
+            "impDlr": "1669939",
+            "statCd": "MW",
+            "statCdCntnKor1": "말라위",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "624887",
+            "expCnt": "12",
+            "expDlr": "628819",
+            "impCnt": "1",
+            "impDlr": "3932",
+            "statCd": "BZ",
+            "statCdCntnKor1": "벨리제",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "479973",
+            "expCnt": "14",
+            "expDlr": "587050",
+            "impCnt": "8",
+            "impDlr": "107077",
+            "statCd": "RW",
+            "statCdCntnKor1": "르완다",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "534050",
+            "expCnt": "9",
+            "expDlr": "534050",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "MQ",
+            "statCdCntnKor1": "마티니크",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "522849",
+            "expCnt": "54",
+            "expDlr": "528361",
+            "impCnt": "2",
+            "impDlr": "5512",
+            "statCd": "MV",
+            "statCdCntnKor1": "몰디브",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "329107",
+            "expCnt": "26",
+            "expDlr": "490855",
+            "impCnt": "5",
+            "impDlr": "161748",
+            "statCd": "GY",
+            "statCdCntnKor1": "가이아나",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "439533",
+            "expCnt": "8",
+            "expDlr": "454519",
+            "impCnt": "1",
+            "impDlr": "14986",
+            "statCd": "KY",
+            "statCdCntnKor1": "영령 캐이맨 군도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-557120",
+            "expCnt": "13",
+            "expDlr": "453629",
+            "impCnt": "3",
+            "impDlr": "1010749",
+            "statCd": "GA",
+            "statCdCntnKor1": "가봉",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "227738",
+            "expCnt": "12",
+            "expDlr": "453264",
+            "impCnt": "2",
+            "impDlr": "225526",
+            "statCd": "AS",
+            "statCdCntnKor1": "아메리칸 사모아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "436028",
+            "expCnt": "10",
+            "expDlr": "436028",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "GP",
+            "statCdCntnKor1": "과델로프",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "61803",
+            "expCnt": "10",
+            "expDlr": "405854",
+            "impCnt": "9",
+            "impDlr": "344051",
+            "statCd": "SR",
+            "statCdCntnKor1": "수리남",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-3245788",
+            "expCnt": "8",
+            "expDlr": "404844",
+            "impCnt": "31",
+            "impDlr": "3650632",
+            "statCd": "MR",
+            "statCdCntnKor1": "모리타니",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-233906",
+            "expCnt": "17",
+            "expDlr": "383169",
+            "impCnt": "25",
+            "impDlr": "617075",
+            "statCd": "LI",
+            "statCdCntnKor1": "리히텐슈타인",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-658898",
+            "expCnt": "22",
+            "expDlr": "378767",
+            "impCnt": "72",
+            "impDlr": "1037665",
+            "statCd": "MD",
+            "statCdCntnKor1": "몰도바",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "369298",
+            "expCnt": "6",
+            "expDlr": "369433",
+            "impCnt": "2",
+            "impDlr": "135",
+            "statCd": "KN",
+            "statCdCntnKor1": "세인트 키츠 네비스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "358159",
+            "expCnt": "37",
+            "expDlr": "359138",
+            "impCnt": "0",
+            "impDlr": "979",
+            "statCd": "PF",
+            "statCdCntnKor1": "불령 폴리네시아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "340731",
+            "expCnt": "1",
+            "expDlr": "340731",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "GS",
+            "statCdCntnKor1": "남조지아 & 남샌드위치 군도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "245523",
+            "expCnt": "35",
+            "expDlr": "338289",
+            "impCnt": "5",
+            "impDlr": "92766",
+            "statCd": "KI",
+            "statCdCntnKor1": "키리바티",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-203930",
+            "expCnt": "27",
+            "expDlr": "334010",
+            "impCnt": "8",
+            "impDlr": "537940",
+            "statCd": "VU",
+            "statCdCntnKor1": "바누아투",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "321684",
+            "expCnt": "5",
+            "expDlr": "321684",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "GD",
+            "statCdCntnKor1": "그레나다",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "304234",
+            "expCnt": "7",
+            "expDlr": "304234",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "Z1",
+            "statCdCntnKor1": "국제통화기금",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-1847139",
+            "expCnt": "14",
+            "expDlr": "303591",
+            "impCnt": "28",
+            "impDlr": "2150730",
+            "statCd": "SL",
+            "statCdCntnKor1": "시에라 리온",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "20101",
+            "expCnt": "31",
+            "expDlr": "296394",
+            "impCnt": "10",
+            "impDlr": "276293",
+            "statCd": "AM",
+            "statCdCntnKor1": "아르메니아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "256762",
+            "expCnt": "4",
+            "expDlr": "256937",
+            "impCnt": "1",
+            "impDlr": "175",
+            "statCd": "CV",
+            "statCdCntnKor1": "카보 베르데",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "254866",
+            "expCnt": "24",
+            "expDlr": "254866",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "PW",
+            "statCdCntnKor1": "팔라우",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-2602708",
+            "expCnt": "19",
+            "expDlr": "251161",
+            "impCnt": "2",
+            "impDlr": "2853869",
+            "statCd": "NA",
+            "statCdCntnKor1": "나미비아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "223652",
+            "expCnt": "7",
+            "expDlr": "232128",
+            "impCnt": "1",
+            "impDlr": "8476",
+            "statCd": "LC",
+            "statCdCntnKor1": "세인트 루시아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "172283",
+            "expCnt": "11",
+            "expDlr": "172283",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "BT",
+            "statCdCntnKor1": "부탄",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "150240",
+            "expCnt": "16",
+            "expDlr": "150254",
+            "impCnt": "1",
+            "impDlr": "14",
+            "statCd": "ML",
+            "statCdCntnKor1": "말리",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-186334",
+            "expCnt": "13",
+            "expDlr": "141024",
+            "impCnt": "20",
+            "impDlr": "327358",
+            "statCd": "SZ",
+            "statCdCntnKor1": "스와질랜드",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "126398",
+            "expCnt": "12",
+            "expDlr": "126398",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "TD",
+            "statCdCntnKor1": "챠드",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-45587",
+            "expCnt": "13",
+            "expDlr": "124462",
+            "impCnt": "8",
+            "impDlr": "170049",
+            "statCd": "MK",
+            "statCdCntnKor1": "마세도니아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "77983",
+            "expCnt": "2",
+            "expDlr": "82238",
+            "impCnt": "1",
+            "impDlr": "4255",
+            "statCd": "NR",
+            "statCdCntnKor1": "나우루",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "35888",
+            "expCnt": "6",
+            "expDlr": "77984",
+            "impCnt": "1",
+            "impDlr": "42096",
+            "statCd": "GM",
+            "statCdCntnKor1": "감비아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "67246",
+            "expCnt": "11",
+            "expDlr": "77021",
+            "impCnt": "1",
+            "impDlr": "9775",
+            "statCd": "DM",
+            "statCdCntnKor1": "도미니카",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "76235",
+            "expCnt": "26",
+            "expDlr": "76248",
+            "impCnt": "1",
+            "impDlr": "13",
+            "statCd": "GI",
+            "statCdCntnKor1": "지브랄타",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "70883",
+            "expCnt": "2",
+            "expDlr": "71049",
+            "impCnt": "1",
+            "impDlr": "166",
+            "statCd": "ME",
+            "statCdCntnKor1": "몬테네그로",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "56002",
+            "expCnt": "3",
+            "expDlr": "56032",
+            "impCnt": "1",
+            "impDlr": "30",
+            "statCd": "GF",
+            "statCdCntnKor1": "불령 가이아나",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "45143",
+            "expCnt": "3",
+            "expDlr": "45143",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "VG",
+            "statCdCntnKor1": "영령 버진군도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "35926",
+            "expCnt": "2",
+            "expDlr": "35926",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "ER",
+            "statCdCntnKor1": "에리트리아",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "25154",
+            "expCnt": "1",
+            "expDlr": "25154",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "NF",
+            "statCdCntnKor1": "노폴크 아일랜드",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-12597",
+            "expCnt": "1",
+            "expDlr": "23770",
+            "impCnt": "4",
+            "impDlr": "36367",
+            "statCd": "TO",
+            "statCdCntnKor1": "통가",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-50352",
+            "expCnt": "1",
+            "expDlr": "20400",
+            "impCnt": "3",
+            "impDlr": "70752",
+            "statCd": "SM",
+            "statCdCntnKor1": "산마리노",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-699222",
+            "expCnt": "10",
+            "expDlr": "15000",
+            "impCnt": "62",
+            "impDlr": "714222",
+            "statCd": "BA",
+            "statCdCntnKor1": "보스니아-헤르체고비나",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "14118",
+            "expCnt": "10",
+            "expDlr": "14118",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "CW",
+            "statCdCntnKor1": "큐라소",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "13558",
+            "expCnt": "2",
+            "expDlr": "13558",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "VC",
+            "statCdCntnKor1": "세인트 빈센트 그레나딘",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "11138",
+            "expCnt": "1",
+            "expDlr": "13081",
+            "impCnt": "1",
+            "impDlr": "1943",
+            "statCd": "LS",
+            "statCdCntnKor1": "레소토",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-210018",
+            "expCnt": "3",
+            "expDlr": "10159",
+            "impCnt": "7",
+            "impDlr": "220177",
+            "statCd": "MC",
+            "statCdCntnKor1": "모나코",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "7324",
+            "expCnt": "3",
+            "expDlr": "7425",
+            "impCnt": "0",
+            "impDlr": "101",
+            "statCd": "TK",
+            "statCdCntnKor1": "토켈라우",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-27433",
+            "expCnt": "1",
+            "expDlr": "6679",
+            "impCnt": "2",
+            "impDlr": "34112",
+            "statCd": "BI",
+            "statCdCntnKor1": "부룬디",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "6394",
+            "expCnt": "3",
+            "expDlr": "6394",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "FO",
+            "statCdCntnKor1": "파로에 군도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "2331",
+            "expCnt": "1",
+            "expDlr": "2331",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "ST",
+            "statCdCntnKor1": "상토메 프린스페",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-7625",
+            "expCnt": "2",
+            "expDlr": "1433",
+            "impCnt": "0",
+            "impDlr": "9058",
+            "statCd": "NE",
+            "statCdCntnKor1": "니제르",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "911",
+            "expCnt": "1",
+            "expDlr": "911",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "SS",
+            "statCdCntnKor1": "남수단",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "690",
+            "expCnt": "1",
+            "expDlr": "690",
+            "impCnt": "0",
+            "impDlr": "0",
+            "statCd": "CF",
+            "statCdCntnKor1": "중앙아프리카공화국",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-2947",
+            "expCnt": "3",
+            "expDlr": "539",
+            "impCnt": "2",
+            "impDlr": "3486",
+            "statCd": "VI",
+            "statCdCntnKor1": "미령 버진군도",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-277671",
+            "expCnt": "2",
+            "expDlr": "236",
+            "impCnt": "18",
+            "impDlr": "277907",
+            "statCd": "GL",
+            "statCdCntnKor1": "그린랜드",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-167",
+            "expCnt": "0",
+            "expDlr": "0",
+            "impCnt": "0",
+            "impDlr": "167",
+            "statCd": "SH",
+            "statCdCntnKor1": "세인트 헬레나",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-136",
+            "expCnt": "0",
+            "expDlr": "0",
+            "impCnt": "1",
+            "impDlr": "136",
+            "statCd": "AD",
+            "statCdCntnKor1": "안도라",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-38964",
+            "expCnt": "0",
+            "expDlr": "0",
+            "impCnt": "2",
+            "impDlr": "38964",
+            "statCd": "NU",
+            "statCdCntnKor1": "니우에",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-24",
+            "expCnt": "0",
+            "expDlr": "0",
+            "impCnt": "1",
+            "impDlr": "24",
+            "statCd": "GG",
+            "statCdCntnKor1": "건지",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-135003",
+            "expCnt": "0",
+            "expDlr": "0",
+            "impCnt": "3",
+            "impDlr": "135003",
+            "statCd": "GW",
+            "statCdCntnKor1": "기네비소",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-325366",
+            "expCnt": "0",
+            "expDlr": "0",
+            "impCnt": "3",
+            "impDlr": "325366",
+            "statCd": "KM",
+            "statCdCntnKor1": "코모로스",
+            "year": "2016.01"
+          },
+          {
+            "balPayments": "-24049",
+            "expCnt": "0",
+            "expDlr": "0",
+            "impCnt": "2",
+            "impDlr": "24049",
+            "statCd": "CK",
+            "statCdCntnKor1": "쿡 아일랜드",
+            "year": "2016.01"
+          }
+        ]
+      }
+    },
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "정상서비스."
+    }
+  }
+}

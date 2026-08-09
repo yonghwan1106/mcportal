@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yong Park
+#
+# MCPortal 주간 드리프트 감시 — 설계 §7 표의 weekly.yml.
+#
+# 이 워크플로가 ci.yml 과 다른 점은 딱 하나다: **락파일을 쓰지 않는다.**
+# ci.yml 의 test 잡은 requirements/lock-py311.txt 로 그래프를 고정해서
+# "우리가 검증한 조합에서 초록"을 지킨다. 여기서는 일부러 고정을 풀고
+# 상류가 새로 낸 버전으로 해석시켜서, 우리 코드가 아니라 **생태계 쪽에서
+# 굴러 들어오는 파손**을 미리 본다(기획안 리스크 14).
+# 그래서 이 워크플로가 붉어져도 리포는 정상일 수 있다. 붉어지면 조치는
+# "코드 수정" 이 아니라 "무엇이 어떻게 바뀌었는지 확인하고 락파일 갱신 여부 결정"이다.
+#
+# 기획안 리스크 14 문면과의 차이(명문화)
+# --------------------------------------
+# 기획안 리스크 14 는 주간 점검 항목으로 "Inspector"(MCP Inspector 로 서버를
+# 띄워 도구 목록을 확인)를 적었다. 여기서는 그 자리를 **pytest 로 대체**한다.
+#   - Inspector 는 대화형 UI 도구라 헤드리스 CI 의 통과/실패 판정에 부적합하다.
+#   - 우리가 정말 지키고 싶은 명제("스펙 -> MCP 서버 변환이 여전히 성립한다")는
+#     tests/test_mcp_wiring.py 가 카세트 위에서 이미 검사하고 있고, 그쪽이
+#     네트워크 0 · 결정론이라 주간 자동 실행에 맞는다.
+#   - Inspector 를 이용한 수동 확인은 W5 데모 준비 단계의 사람 작업으로 남긴다.
+#
+# 액션 버전 근거(2026-08-09 GitHub Releases API 실측, 전부 prerelease=false):
+#   actions/checkout      v7.0.1  https://github.com/actions/checkout/releases
+#   actions/setup-python  v7.0.0  https://github.com/actions/setup-python/releases
+
+name: weekly
+
+on:
+  schedule:
+    # 매주 월요일 05:23 KST (= 일요일 20:23 UTC).
+    # 정각을 피한 이유: GitHub 이 정각에 몰린 예약 작업을 뒤로 미룬다.
+    - cron: "23 20 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: dependency drift (락파일 미사용)
+    runs-on: ubuntu-latest
+    steps:
+      # 예약 실행은 항상 기본 브랜치의 신선한 클론에서 시작한다.
+      - name: 체크아웃 (신선 클론)
+        uses: actions/checkout@v7
+
+      - name: 파이썬 준비
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      # 여기가 이 워크플로의 핵심이다. -c requirements/lock-py311.txt 가 **없다.**
+      # editable 도 아닌 일반 설치라, 빌드된 배포물이 실제로 동작하는지까지 같이 본다.
+      - name: 자유 해석 설치 (락 미사용 — 드리프트 감지 목적)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev]"
+
+      # 무엇이 락과 달라졌는지가 이 잡의 실질 산출물이다. 로그로 남긴다.
+      - name: 해석된 그래프 <-> 락파일 비교
+        run: |
+          python -m pip freeze --exclude-editable > resolved.txt
+          echo "=== 이번 주 해석 결과 ==="
+          cat resolved.txt
+          if [ -f requirements/lock-py311.txt ]; then
+            echo
+            echo "=== 락파일과의 차이(참고용 · 실패시키지 않음) ==="
+            # 락파일은 --hash 주석 등 부가 행을 포함하므로 이름==버전 만 뽑아 견준다.
+            grep -oE '^[A-Za-z0-9._-]+==[^ ;\\]+' requirements/lock-py311.txt \
+              | sort -u > lock-pins.txt || true
+            sort -u resolved.txt > resolved-sorted.txt
+            diff -u lock-pins.txt resolved-sorted.txt || true
+          else
+            echo "requirements/lock-py311.txt 가 아직 없다 — 비교 생략."
+          fi
+
+      - name: pytest (기획안 리스크 14 의 Inspector 항목 대체)
+        run: python -m pytest -q
+
+      # --presets-root 를 명시하는 이유: 이 잡은 editable 이 아닌 일반 설치라,
+      # W4 §6-1 로 프리셋이 wheel 에 동봉되면 default_presets_root() 탐색 순서
+      # ②(패키지 데이터 mcportal/presets)가 먼저 잡힌다. 그러면 체크아웃이 아니라
+      # site-packages 안의 사본을 검사하게 되어 감시 대상이 뒤바뀐다.
+      - name: compile --check (컴파일러 결정론)
+        run: python -m mcportal.cli compile --check --presets-root presets

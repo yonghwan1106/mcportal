@@ -1,0 +1,110 @@
+{
+  "mcportal_sampled": 1,
+  "operations": {
+    "getNationtradeList": {
+      "inference": {
+        "conflicts": 0,
+        "sample_count": 1,
+        "truncated": false
+      },
+      "response_schema": {
+        "properties": {
+          "response": {
+            "properties": {
+              "body": {
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "item": {
+                        "items": {
+                          "properties": {
+                            "balPayments": {
+                              "type": "string"
+                            },
+                            "expCnt": {
+                              "type": "string"
+                            },
+                            "expDlr": {
+                              "type": "string"
+                            },
+                            "impCnt": {
+                              "type": "string"
+                            },
+                            "impDlr": {
+                              "type": "string"
+                            },
+                            "statCd": {
+                              "type": "string"
+                            },
+                            "statCdCntnKor1": {
+                              "type": "string"
+                            },
+                            "year": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "balPayments",
+                            "expCnt",
+                            "expDlr",
+                            "impCnt",
+                            "impDlr",
+                            "statCd",
+                            "statCdCntnKor1",
+                            "year"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "item"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "items"
+                ],
+                "type": "object"
+              },
+              "header": {
+                "properties": {
+                  "resultCode": {
+                    "type": "string"
+                  },
+                  "resultMsg": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "resultCode",
+                  "resultMsg"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "body",
+              "header"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "response"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "preset_id": "15101612",
+  "provenance": {
+    "call_count": 1,
+    "cassette": "cassettes/15101612.json",
+    "cassette_sha256": "sha256:d27eff315419eb6c9925f0698e8310bb11cc0ece4f6c99901ba19fc1b186725d",
+    "sample_count": 1
+  },
+  "sampled_on": "2026-08-09"
+}

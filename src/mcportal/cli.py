@@ -2,7 +2,7 @@
 # Copyright 2026 Yong Park
 """MCPortal 명령행 인터페이스(표준 라이브러리 argparse 전용).
 
-세 개의 서브커맨드를 제공한다.
+네 개의 서브커맨드를 제공한다.
 
 * ``mcportal quota status`` - 오늘(KST) 사용량·예산·잔여를 표로 보여 준다.
   원장은 **읽기 전용**으로만 연다. CLI 는 원장을 만들지도 쓰지도 않는다.
@@ -10,6 +10,14 @@
   ``--check`` 는 파일을 쓰지 않고 커밋본과 바이트 비교만 하며, 드리프트가
   있으면 종료 코드 3 으로 CI 를 세운다.
 * ``mcportal presets`` - 설치된 프리셋 번들 목록을 표로 보여 준다.
+* ``mcportal sample`` - 프리셋의 **미확정 응답 스키마만** 실키 샘플링으로 채운다.
+  이 명령만 유일하게 상위 API 를 실제로 호출하므로, 인증키는 ``--key-env`` 로
+  넘긴 **환경변수 이름**을 통해서만 받고(원문 인자 옵션은 만들지 않는다) 원장에
+  사용량을 기록한다. 출력에는 집계 수치만 싣고 인증키·응답 원문은 싣지 않는다.
+
+**인증키 취급 원칙**: 이 모듈은 인증키 원문을 **어떤 스트림에도 쓰지 않는다**.
+성공 출력은 물론 오류 메시지도 마찬가지이며, 실수로 키를 옵션 값에 넣은 경우를
+대비해 거부 메시지조차 넘겨받은 값을 되울리지 않는다.
 
 **의존성 정책**: 표준 라이브러리만 쓴다. 기획안이 적었던 rich 터미널 테이블은
 「신규 런타임 의존성 0」 규칙을 지키기 위해 표준 라이브러리 텍스트 테이블로
@@ -68,6 +76,7 @@ ENV_PRESETS_ROOT: str = "MCPORTAL_PRESETS"
 SCHEMA_QUOTA_STATUS: str = "mcportal.quota.status/1"
 SCHEMA_COMPILE: str = "mcportal.compile/1"
 SCHEMA_PRESETS: str = "mcportal.presets/1"
+SCHEMA_SAMPLE: str = "mcportal.sample/1"
 
 #: 예산 상한의 출처 표기(기계가독 값 -> 사람용 라벨).
 BUDGET_SOURCE_ARGUMENT: str = "argument"
@@ -99,7 +108,34 @@ NO_TABLE_NOTE: str = (
 )
 
 #: 응답 스키마 미확정 프리셋이 있을 때 표 아래에 붙이는 안내.
-UNRESOLVED_NOTE: str = "응답 미확정 스키마는 v0.2 실키 샘플링에서 채워집니다."
+UNRESOLVED_NOTE: str = (
+    "응답 미확정 스키마는 mcportal sample(실키 샘플링)로 채웁니다."
+)
+
+#: ``--key-env`` 가 가리킨 환경변수에 값이 없을 때의 안내.
+#:
+#: **변수 이름을 되울리지 않는다.** ``_env_name_arg`` 가 인증키 형태를 걸러 내지만
+#: 그 검사는 형태 기반이라 완벽할 수 없고, 순수 영숫자로만 이루어진 키는 이름으로
+#: 통과한다. 그때 이름을 에코하면 막으려던 노출을 오류 메시지가 대신 저지른다.
+#: 사용자는 자기가 방금 무엇을 넘겼는지 알고 있으므로 이름을 다시 보여 줄 필요가
+#: 없다(W4 §5).
+KEY_ENV_MISSING: str = "지정한 환경변수에 인증키가 없습니다. 변수 이름을 확인하세요."
+
+#: ``mcportal sample`` 이 실호출 명령임을 밝히는 상시 고지.
+SAMPLE_LIVE_NOTE: str = (
+    "이 명령은 상위 API 를 실제로 호출하고 사용량을 원장에 기록합니다. "
+    "호출 대상은 응답 스키마가 미확정인 오퍼레이션뿐입니다."
+)
+
+#: 샘플링 산출물이 오프라인에서도 재현된다는 고지(compile --check 대비).
+#:
+#: 추론 스키마는 산출물에만 남지 않고 번들의 ``sampled_schemas.json`` 으로
+#: 영속화된다. 그래서 인증키가 없는 사람이 같은 번들을 다시 컴파일해도 바이트가
+#: 같고, 드리프트 게이트는 조용하다.
+SAMPLE_PERSIST_NOTE: str = (
+    "샘플링 결과는 번들의 sampled_schemas.json 으로 영속화됩니다. "
+    "인증키 없이 `mcportal compile --check` 를 돌려도 같은 바이트가 재현됩니다."
+)
 
 #: 키 지문 인자의 형식(sha256 hex 앞 12자).
 _KEY_FP_RE = re.compile(r"^[0-9a-fA-F]{12}$")
@@ -122,6 +158,7 @@ HANDLERS: dict[str, str] = {
     "quota_status": "_cmd_quota_status",
     "compile": "_cmd_compile",
     "presets": "_cmd_presets",
+    "sample": "_cmd_sample",
 }
 
 
@@ -304,6 +341,30 @@ def _budget_arg(text: str) -> int:
     return value
 
 
+def _count_arg(text: str) -> int:
+    """오퍼레이션당 샘플 수 인자를 검증한다(1 이상, 샘플러 하드캡 이하).
+
+    상한은 :data:`mcportal.compiler.sampler.MAX_SAMPLES` 를 **지연 조회**한다.
+    숫자를 여기에 다시 적으면 두 곳이 갈라질 수 있고, 모듈 최상위에서 임포트하면
+    ``--help`` 만 볼 때도 httpx 를 끌어오게 된다.
+    """
+    try:
+        value = int(text.strip())
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"샘플 수는 정수여야 합니다: {text!r}"
+        ) from exc
+    try:
+        from mcportal.compiler.sampler import MAX_SAMPLES
+    except ImportError:  # pragma: no cover - 컴파일러 부재 방어
+        MAX_SAMPLES = 5
+    if not 1 <= value <= MAX_SAMPLES:
+        raise argparse.ArgumentTypeError(
+            f"샘플 수는 1 이상 {MAX_SAMPLES} 이하여야 합니다(쿼터 보호 하드캡): {value}"
+        )
+    return value
+
+
 def _key_fp_arg(text: str) -> str:
     """키 지문 인자(sha256 hex 앞 12자)를 검증하고 소문자로 정규화한다."""
     candidate = text.strip()
@@ -462,6 +523,59 @@ def build_parser() -> argparse.ArgumentParser:
     )
     presets_parser.set_defaults(handler="presets")
 
+    sample_parser = subparsers.add_parser(
+        "sample",
+        help="프리셋의 미확정 응답 스키마를 실키 샘플링으로 채운다(상위 API 실호출).",
+        description=(
+            "지정한 프리셋에서 응답 스키마가 미확정인 오퍼레이션만 골라 실제로 "
+            "호출하고, 얻은 표본으로 스키마를 추론해 openapi.json 을 갱신한다. "
+            "인증키는 --key-env 로 지정한 환경변수에서만 읽으며 출력에 싣지 않는다."
+        ),
+    )
+    sample_parser.add_argument(
+        "preset_id",
+        nargs="+",
+        metavar="PRESET_ID",
+        help="샘플링할 프리셋 ID(하나 이상). 실호출 명령이므로 생략할 수 없다.",
+    )
+    sample_parser.add_argument(
+        "--key-env",
+        metavar="VAR",
+        type=_env_name_arg,
+        required=True,
+        help=(
+            "인증키가 든 환경변수의 이름. 키 원문을 인자로 받는 옵션은 없다"
+            "(셸 히스토리·프로세스 목록 노출 차단)."
+        ),
+    )
+    sample_parser.add_argument(
+        "--budget",
+        metavar="N",
+        type=_budget_arg,
+        default=None,
+        help=f"일일 예산 상한. 생략하면 {ENV_BUDGET} 환경변수, 그다음 프로파일 기본값.",
+    )
+    sample_parser.add_argument(
+        "--count",
+        metavar="N",
+        type=_count_arg,
+        default=3,
+        help="오퍼레이션당 샘플 수(기본 3). 샘플러 하드캡을 넘을 수 없다.",
+    )
+    sample_parser.add_argument(
+        "--ledger",
+        metavar="PATH",
+        default=None,
+        help="사용량 원장 경로. 생략하면 MCPORTAL_LEDGER 환경변수 또는 기본 경로.",
+    )
+    sample_parser.add_argument(
+        "--presets-root", metavar="PATH", default=None, help="프리셋 루트 디렉터리."
+    )
+    sample_parser.add_argument(
+        "--json", action="store_true", help="기계가독 JSON 으로 출력한다."
+    )
+    sample_parser.set_defaults(handler="sample")
+
     return parser
 
 
@@ -511,36 +625,61 @@ def _resolve_budget(argument: int | None) -> tuple["DailyBudget", str]:
     return DailyBudget(DATA_GO_KR.default_daily_budget), BUDGET_SOURCE_PROFILE
 
 
+def _read_key_env(key_env_arg: str) -> str:
+    """``--key-env`` 가 가리킨 환경변수에서 인증키를 읽어 정규화해 돌려준다.
+
+    정규화(:func:`~mcportal.runtime.keys.prepare_service_key`)를 거치는 이유는
+    트랜스포트가 정규화한 키로 요청을 보내고 원장을 기록하기 때문이다 - 인코딩키를
+    그대로 쓰면 같은 키인데도 지문이 달라 0건으로 보이고, 질의문자열에서는 이중
+    인코딩(코드 30)이 된다.
+
+    **오류 메시지에 변수 이름도 키 원문도 싣지 않는다.** 이름을 싣지 않는 이유는
+    사용자가 실수로 키 원문을 ``--key-env`` 에 넘겼을 때 그 값이 그대로 stderr 로
+    되울리기 때문이다. :func:`_env_name_arg` 가 형태로 걸러 내지만 순수 영숫자
+    인증키는 이름으로 통과하므로, 마지막 방어선을 여기에 둔다(W4 §5).
+
+    Args:
+        key_env_arg: 환경변수 이름(:func:`_env_name_arg` 검증을 통과한 값).
+
+    Returns:
+        정규화된 인증키 원문.
+
+    Raises:
+        CliError: 환경변수가 없거나 비어 있거나 키를 해석할 수 없을 때.
+    """
+    from mcportal.runtime.keys import prepare_service_key
+
+    raw = os.environ.get(key_env_arg)
+    if raw is None or not raw.strip():
+        raise CliError(
+            KEY_ENV_MISSING,
+            hints=["키를 설정했는지 확인하세요. 키 원문은 출력하지 않습니다."],
+        )
+    try:
+        return prepare_service_key(raw)
+    except ValueError as exc:  # pragma: no cover - 위에서 공백을 걸렀다
+        raise CliError(
+            f"지정한 환경변수의 인증키를 해석하지 못했습니다: {exc}"
+        ) from exc
+
+
 def _resolve_key_filter(key_fp_arg: str | None, key_env_arg: str | None) -> str | None:
     """집계에 적용할 키 지문 필터를 만든다.
 
-    ``--key-env`` 는 환경변수 **이름**만 받고, 값은 :func:`~mcportal.runtime.keys.
-    prepare_service_key` 로 정규화한 뒤 지문으로만 쓴다. 정규화를 거치는 이유는
-    트랜스포트가 정규화한 키로 원장을 기록하기 때문이다 - 인코딩키를 그대로
-    지문화하면 같은 키인데도 0건으로 보인다.
+    ``--key-env`` 는 환경변수 **이름**만 받고, 값은 :func:`_read_key_env` 로
+    정규화한 뒤 지문으로만 쓴다.
 
     Returns:
         키 지문 문자열 또는 필터 없음(None).
 
     Raises:
-        CliError: 환경변수가 비어 있거나 키 형식이 잘못됐을 때. **키 원문은
-            메시지에 절대 싣지 않는다.**
+        CliError: 환경변수가 비어 있거나 키 형식이 잘못됐을 때. **키 원문도 변수
+            이름도 메시지에 싣지 않는다.**
     """
     if key_env_arg is not None:
         from mcportal.quota.ledger import key_fp
-        from mcportal.runtime.keys import prepare_service_key
 
-        raw = os.environ.get(key_env_arg)
-        if raw is None or not raw.strip():
-            raise CliError(
-                f"환경변수 {key_env_arg} 에 인증키가 없습니다.",
-                hints=["키를 설정했는지 확인하세요. 키 원문은 출력하지 않습니다."],
-            )
-        try:
-            prepared = prepare_service_key(raw)
-        except ValueError as exc:  # pragma: no cover - 위에서 공백을 걸렀다
-            raise CliError(f"환경변수 {key_env_arg} 의 인증키를 해석하지 못했습니다: {exc}") from exc
-        return key_fp(prepared)
+        return key_fp(_read_key_env(key_env_arg))
     return key_fp_arg
 
 
@@ -974,13 +1113,24 @@ def _info_to_json(info: Any) -> dict[str, Any]:
 
 
 def _json_safe(value: Any) -> Any:
-    """경로·튜플·집합을 JSON 으로 옮길 수 있는 형태로 바꾼다(배열은 실제 배열)."""
+    """경로·튜플·집합·중첩 dataclass 를 JSON 으로 옮길 수 있는 형태로 바꾼다.
+
+    배열은 실제 배열로 내고, 중첩된 frozen dataclass 는 객체로 편다 - 요약
+    보고서(:class:`~mcportal.compiler.curation.PresetSampleReport`)가 오퍼레이션별
+    요약을 dataclass 튜플로 들고 있어서, 편평화가 없으면 ``json.dumps`` 가
+    ``TypeError`` 로 죽는다.
+    """
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, (list, tuple, set, frozenset)):
         return [_json_safe(item) for item in value]
     if isinstance(value, Mapping):
         return {str(key): _json_safe(item) for key, item in value.items()}
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            field.name: _json_safe(getattr(value, field.name))
+            for field in dataclass_fields(value)
+        }
     return value
 
 
@@ -1224,6 +1374,144 @@ def _render_presets(root: Path, infos: Sequence[Any], *, verbose: bool) -> list[
     if any(int(info.unresolved_count) > 0 for info in infos):
         lines.append("")
         lines.append(UNRESOLVED_NOTE)
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# sample (유일한 실호출 명령)
+# ---------------------------------------------------------------------------
+def _sample_to_json(report: Any) -> dict[str, Any]:
+    """:class:`PresetSampleReport` 를 JSON 안전한 딕셔너리로 바꾼다.
+
+    :func:`_info_to_json` 과 같은 규칙(필드 목록을 dataclass 에서 읽는다)이라
+    큐레이션 모듈이 요약 필드를 늘려도 CLI 를 고칠 필요가 없다. 보고서에는 응답
+    값도 인증키도 담기지 않으므로(설계상 수치 전용) 그대로 실어도 안전하다.
+    """
+    return _info_to_json(report)
+
+
+def _cmd_sample(args: argparse.Namespace) -> int:
+    """``mcportal sample`` 을 수행한다.
+
+    다른 서브커맨드와 달리 **상위 API 를 실제로 호출**하고 원장에 사용량을
+    기록한다(``quota status`` 의 읽기 전용 원칙과 구분되는 지점이다). 인증키는
+    ``--key-env`` 환경변수에서만 읽고 출력 어디에도 싣지 않는다.
+
+    Returns:
+        :data:`EXIT_OK`. 호출이 나갔는데 정상 응답이 하나도 없으면
+        :data:`EXIT_ERROR` - 전량 실패를 0 으로 끝내면 자동화가 "채웠다"고
+        오인한다.
+    """
+    explicit = _explicit_root(args.presets_root)
+    curation = _import_curation()
+    service_key = _read_key_env(args.key_env)
+    root = _resolve_presets_root(curation, explicit)
+    hints = _root_search_hints(curation)
+    _warn_ignored_env_root(curation, explicit, root)
+    infos = _load_preset_infos(curation, root) if root is not None else ()
+    selected = _select_presets(
+        infos,
+        args.preset_id,
+        search_hints=() if explicit is not None else hints,
+    )
+
+    ledger_path = Path(args.ledger) if args.ledger else None
+    reports: list[Any] = []
+    for info in selected:
+        try:
+            reports.append(
+                curation.sample_preset(
+                    info.directory,
+                    service_key=service_key,
+                    count=args.count,
+                    budget=args.budget,
+                    ledger_path=ledger_path,
+                )
+            )
+        except CliError:  # pragma: no cover - 글루는 CliError 를 던지지 않는다
+            raise
+        except KeyboardInterrupt:
+            raise
+        except Exception as exc:  # noqa: BLE001 - 어떤 실패든 키 없이 접어 보고한다
+            raise CliError(
+                f"프리셋 {info.preset_id} 샘플링에 실패했습니다.",
+                hints=[
+                    f"{type(exc).__name__}: {exc}",
+                    "인증키 원문은 출력하지 않습니다.",
+                ],
+            ) from exc
+
+    calls = sum(int(report.call_count) for report in reports)
+    ok = sum(int(report.ok_count) for report in reports)
+    failed = sum(int(report.failed_count) for report in reports)
+    resolved = sum(len(report.resolved_operations) for report in reports)
+
+    if args.json:
+        _emit_json(
+            {
+                "schema": SCHEMA_SAMPLE,
+                "root": str(root) if root is not None else None,
+                "root_source": _root_source(curation, explicit, root),
+                "presets": [_sample_to_json(report) for report in reports],
+                "calls": calls,
+                "ok": ok,
+                "failed": failed,
+                "resolved": resolved,
+                "notes": [SAMPLE_LIVE_NOTE, SAMPLE_PERSIST_NOTE],
+            }
+        )
+    else:
+        _emit(_render_sample(root, reports, calls=calls, ok=ok, failed=failed))
+
+    return EXIT_ERROR if calls and not ok else EXIT_OK
+
+
+def _render_sample(
+    root: Path | None,
+    reports: Sequence[Any],
+    *,
+    calls: int,
+    ok: int,
+    failed: int,
+) -> list[str]:
+    """샘플링 결과의 사람용 출력을 만든다(수치만 - 키·응답 원문 없음)."""
+    lines = [f"실키 샘플링 (루트: {root})", ""]
+    headers = ["ID", "대상", "호출", "정상", "실패", "확정", "산출"]
+    aligns = ["left", "right", "right", "right", "right", "right", "left"]
+    rows = [
+        [
+            str(report.preset_id),
+            str(len(report.target_operations)),
+            str(int(report.call_count)),
+            str(int(report.ok_count)),
+            str(int(report.failed_count)),
+            str(len(report.resolved_operations)),
+            "갱신" if report.openapi_path is not None else "-",
+        ]
+        for report in reports
+    ]
+    lines.extend(render_table(headers, rows, aligns))
+    lines.append("")
+    lines.append(
+        f"합계: 호출 {_number(calls)}회 / 정상 {_number(ok)} / 실패 {_number(failed)}"
+    )
+    for report in reports:
+        for summary in report.operations:
+            detail = (
+                f"표본 {summary.sample_count} / 속성 {summary.property_count} / "
+                f"깊이 {summary.max_depth} / 충돌 {summary.conflicts}"
+                if summary.schema_inferred
+                else "스키마 미확정(정상 응답 0건)"
+            )
+            lines.append(
+                f"  {report.preset_id} {summary.operation_id}: "
+                f"{summary.ok}/{summary.calls} 정상 - {detail}"
+            )
+    lines.append("")
+    lines.append(f"주의: {SAMPLE_LIVE_NOTE}")
+    if any(report.openapi_path is not None for report in reports):
+        lines.append("")
+        lines.append(f"안내: {SAMPLE_PERSIST_NOTE}")
     return lines
 
 

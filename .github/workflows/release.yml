@@ -1,0 +1,256 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yong Park
+#
+# MCPortal 릴리스 — 설계 §7 표의 release.yml.
+#
+# 트리거: v* 태그 push (예: v0.2.0)
+# 흐름:   build (sdist+wheel) -> PyPI trusted publishing -> MCP 레지스트리 publish
+#
+# ⚠️ trusted publisher 미등록 시 PyPI 잡 실패 — 폴백 = 로컬 twine
+# ------------------------------------------------------------------------------
+# publish-pypi 잡은 시크릿을 하나도 쓰지 않는다. PyPI 쪽에 "이 리포의 이 워크플로
+# 파일이 mcportal 을 올릴 수 있다"는 trusted publisher 등록이 pypi.org 웹 UI 에
+# 되어 있어야만 OIDC 교환이 성립한다. 등록은 박용환 액션이다(설계 §11-2).
+# 미등록 상태에서 첫 태그를 밀면 이 잡은 인증 단계에서 떨어진다. 그때의 폴백은
+# 로컬 twine 이다:
+#
+#     python -m build
+#     python -m twine upload dist/*        # ~/.pypirc 또는 __token__ + API 토큰
+#
+# 등록 시 입력값:
+#   PyPI Project Name = mcportal
+#   Owner             = yonghwan1106
+#   Repository name   = mcportal
+#   Workflow name     = release.yml
+#   Environment name  = pypi
+# 아래 environment 이름과 이 워크플로 파일명이 등록값과 정확히 같아야 한다.
+#
+# 액션 버전 근거(2026-08-09 GitHub Releases API 실측):
+#   actions/checkout           v7.0.1   https://github.com/actions/checkout/releases
+#   actions/setup-python       v7.0.0   https://github.com/actions/setup-python/releases
+#   actions/upload-artifact    v7.0.1   https://github.com/actions/upload-artifact/releases
+#   actions/download-artifact  v8.0.1   https://github.com/actions/download-artifact/releases
+#   pypa/gh-action-pypi-publish release/v1 (최신 태그 v1.14.2, 2026-07-29)
+#       공식 문서가 권장하는 참조는 이동 브랜치 release/v1 이다.
+#       https://github.com/marketplace/actions/pypi-publish
+# mcp-publisher 설치·로그인·publish 커맨드는 공식 예시를 그대로 옮겼다:
+#   https://modelcontextprotocol.io/registry/github-actions (OIDC authentication)
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. 배포물 빌드
+  # ---------------------------------------------------------------------------
+  build:
+    name: build (sdist + wheel)
+    runs-on: ubuntu-latest
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v7
+
+      - name: 파이썬 준비
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: build 설치
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+
+      - name: sdist + wheel 빌드
+        run: python -m build
+
+      # 태그와 메타데이터가 어긋난 채로 올라가면 되돌릴 수 없다(PyPI 는 같은
+      # 버전 재업로드를 막는다). PyPI 잡보다 앞선 여기서 전부 막는다.
+      # 버전이 적히는 곳은 4군데다: git 태그 · pyproject.toml ·
+      # src/mcportal/__init__.py(둘은 wheel 파일명으로 수렴) · server.json.
+      - name: 태그 <-> 버전 일치 확인
+        run: |
+          python - <<'PY'
+          # -*- coding: utf-8 -*-
+          """git 태그 · 빌드 산출물 · server.json 의 버전이 모두 같은지 본다."""
+          from __future__ import annotations
+
+          import json
+          import os
+          import pathlib
+          import sys
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          expected = tag[1:] if tag.startswith("v") else tag
+          problems: list[str] = []
+
+          wheels = sorted(pathlib.Path("dist").glob("*.whl"))
+          if len(wheels) != 1:
+              sys.exit(f"wheel 이 정확히 1개여야 하는데 {len(wheels)}개다: {wheels}")
+
+          # wheel 파일명 규약: {name}-{version}-{pytag}-{abi}-{platform}.whl
+          built = wheels[0].name.split("-")[1]
+          print(f"태그={tag}  기대버전={expected}")
+          print(f"  wheel        = {built}")
+          if built != expected:
+              problems.append(
+                  f"wheel 이 {built} 다. pyproject.toml 과 "
+                  "src/mcportal/__init__.py 의 버전 2곳을 확인하라."
+              )
+
+          # server.json 은 MCP 레지스트리에 그대로 실린다. 여기가 어긋나면
+          # PyPI 는 새 버전인데 레지스트리는 옛 버전을 가리키는 상태가 된다.
+          server_path = pathlib.Path("server.json")
+          if server_path.exists():
+              server = json.loads(server_path.read_text(encoding="utf-8"))
+              top = server.get("version")
+              print(f"  server.json  = {top}")
+              if top != expected:
+                  problems.append(f"server.json 의 version 이 {top} 다.")
+              for i, pkg in enumerate(server.get("packages", [])):
+                  pver = pkg.get("version")
+                  print(f"  server.json packages[{i}] = {pver}")
+                  if pver != expected:
+                      problems.append(
+                          f"server.json packages[{i}].version 이 {pver} 다."
+                      )
+          else:
+              problems.append("server.json 이 없다 — MCP 레지스트리 publish 가 실패한다.")
+
+          if problems:
+              print()
+              print("버전 불일치:")
+              for line in problems:
+                  print(f"  - {line}")
+              sys.exit(1)
+          print("버전 일치.")
+          PY
+
+      # 되돌릴 수 없는 업로드 직전의 마지막 그물이다. 원문 증거물·전사본·카세트·
+      # 실키 샘플은 어떤 경우에도 배포물에 실리면 안 된다(설계 §6-1).
+      # wheel 내용의 정밀 검사(번들 16파일 + 문서 2)는 B2 의 pytest 가 맡는다.
+      # 여기서는 "절대 나가면 안 되는 접두" 만 본다.
+      - name: 배포물 금지 파일 검사
+        run: |
+          python - <<'PY'
+          # -*- coding: utf-8 -*-
+          """sdist·wheel 안에 금지 경로가 섞였는지 본다."""
+          from __future__ import annotations
+
+          import pathlib
+          import re
+          import sys
+          import tarfile
+          import zipfile
+
+          # 전부 presets/ 아래로 한정한다. 처음에 "/samples/" 를 통짜로 막았더니
+          # specs/demo/samples/(의도적으로 배포하는 합성 데모 픽스처)가 같이
+          # 걸렸다 — 2026-08-09 실측. 막아야 할 것은 프리셋 번들의 원문 증거물과
+          # 실호출 산출물이지 데모 픽스처가 아니다.
+          # 경로 접두는 배포물 종류마다 다르다(wheel: mcportal/presets/... ,
+          # sdist: mcportal-0.2.0/presets/...). 그래서 앞을 고정하지 않는다.
+          FORBIDDEN = (
+              # 원문 증거물 · 전사본 · 매니페스트(설계 §6-1)
+              re.compile(r"(^|/)presets/_raw/"),
+              re.compile(r"(^|/)presets/_transcribed/"),
+              re.compile(r"(^|/)presets/_MANIFEST"),
+              # 실호출 산출물: 카세트와 실키 샘플은 리포에만 둔다(설계 §6-1)
+              re.compile(r"(^|/)presets/[^/]+/cassettes/"),
+              re.compile(r"(^|/)presets/[^/]+/samples/"),
+          )
+
+          def offenders(names: list[str]) -> list[str]:
+              return [n for n in names if any(bad.search(n) for bad in FORBIDDEN)]
+
+          bad_total: list[str] = []
+          for path in sorted(pathlib.Path("dist").iterdir()):
+              if path.suffix == ".whl":
+                  with zipfile.ZipFile(path) as zf:
+                      names = zf.namelist()
+              elif path.name.endswith(".tar.gz"):
+                  with tarfile.open(path) as tf:
+                      names = tf.getnames()
+              else:
+                  continue
+              print(f"--- {path.name}: {len(names)} entries ---")
+              for name in sorted(names):
+                  print(f"    {name}")
+              found = offenders(names)
+              if found:
+                  bad_total.extend(f"{path.name}: {n}" for n in found)
+
+          if bad_total:
+              print()
+              print("배포물에 금지 경로가 들어 있다:")
+              for line in bad_total:
+                  print(f"  - {line}")
+              sys.exit(1)
+          print()
+          print("금지 경로 0건.")
+          PY
+
+      - name: 배포물 아티팩트 업로드
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 2. PyPI (trusted publishing — 시크릿 0개)
+  # ---------------------------------------------------------------------------
+  publish-pypi:
+    name: publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # 이 잡은 배포 액션 하나만 돌린다. id-token 을 가진 잡에서 임의 코드를
+    # 돌리지 않는 것이 pypa 권고다 — 체크아웃조차 하지 않는다.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mcportal
+    permissions:
+      id-token: write
+    steps:
+      - name: 배포물 내려받기
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      # username/password 를 주지 않아야 trusted publishing 경로로 들어간다.
+      - name: PyPI 업로드
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  # ---------------------------------------------------------------------------
+  # 3. MCP 레지스트리 (github-oidc — 시크릿 0개)
+  # ---------------------------------------------------------------------------
+  publish-mcp-registry:
+    name: publish to MCP Registry
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # github-oidc 로그인에 필요
+      contents: read
+    steps:
+      # server.json 을 읽어야 하므로 체크아웃한다(리포 루트에 커밋 — 설계 §6-6).
+      - name: 체크아웃
+        uses: actions/checkout@v7
+
+      - name: mcp-publisher 설치
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: MCP 레지스트리 인증
+        run: ./mcp-publisher login github-oidc
+
+      # 레지스트리는 server.json 의 packages[].identifier 가 PyPI 에 실제로
+      # 존재하는지, 그리고 README(=PyPI description) 상단의 mcp-name 마커로
+      # 소유권이 증명되는지를 확인한다. 앞 잡의 업로드가 인덱스에 반영되기까지
+      # 잠깐 걸릴 수 있어, "Package validation failed" 가 나면 이 잡만 재실행하면 된다.
+      - name: MCP 레지스트리 publish
+        run: ./mcp-publisher publish
