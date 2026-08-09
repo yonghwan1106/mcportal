@@ -9,10 +9,11 @@ data.go.kr(공공데이터포털) 오픈API를 MCP 생태계로 잇는 쿼터 �
    (:mod:`~mcportal.quota` / :mod:`~mcportal.runtime` / :mod:`~mcportal.replay` /
    :mod:`~mcportal.profiles`)가 인증키 주입·쿼터 하드 가드·정규화·record/replay를
    맡는다.
-2. **스펙 정규화 컴파일러(W2)** — :mod:`mcportal.compiler` 가 data.go.kr의 세 가지
-   스펙 제공 방식과 목록조회 메타를 단일 중간표현으로 흡수해 OpenAPI 3.1로
-   결정론 산출한다. 여기서 재수출하는 이름은 :mod:`mcportal.compiler` 의 공개
-   목록과 철자·개수가 같다.
+2. **스펙 정규화 컴파일러(W2·W3)** — :mod:`mcportal.compiler` 가 data.go.kr의 세
+   가지 스펙 제공 방식과 목록조회 메타를 단일 중간표현으로 흡수해 OpenAPI 3.1로
+   결정론 산출한다(아래층). 그 위에 :mod:`mcportal.compiler.curation` 이 사람이
+   확인한 설명·예시·힌트를 얹는다(위층). 여기서 재수출하는 이름은
+   :mod:`mcportal.compiler` 의 공개 목록과 철자·개수가 같다.
 3. **MCP 변환(W2)** — :mod:`mcportal.mcp` 가 산출된 OpenAPI 문서를 fastmcp에
    위임해 MCP 서버로 만든다.
 
@@ -23,6 +24,10 @@ data.go.kr(공공데이터포털) 오픈API를 MCP 생태계로 잇는 쿼터 �
 ``from mcportal.mcp import build_server`` 가 같은 객체를 가리키면서도 fastmcp
 미설치 환경에서 ``import mcportal`` 이 그대로 성공한다(fastmcp 자체는 그보다 더
 늦게, 실제 변환을 호출하는 시점에만 필요하다).
+
+명령행 인터페이스(:mod:`mcportal.cli`)도 여기서 임포트하지 않는다. 진입점은
+``[project.scripts]`` 가 직접 부르며, ``import mcportal`` 이 argparse 파서를 만들
+이유가 없다.
 """
 
 from __future__ import annotations
@@ -30,33 +35,49 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .compiler import (
+    CURATION_SCHEMA_VERSION,
     MAX_SAMPLES,
     CatalogEntry,
     CompiledSpec,
     CompileError,
     CompileOptions,
+    Curation,
+    CurationError,
+    CurationReport,
     InferenceConfig,
     InferenceError,
     InferenceReport,
+    OperationCuration,
     OperationSpec,
+    ParamCuration,
     ParamSpec,
+    PresetInfo,
     SampleRequest,
     SampleResult,
     SamplingError,
+    ServiceCuration,
     SourceKind,
     SourceSpec,
     SourceSpecError,
     TypeConflict,
+    apply_curation,
     build_openapi,
     build_sample_requests,
+    compile_preset,
     compile_with_sampling,
+    default_presets_root,
     dumps,
     fingerprint_document,
     infer_response_schemas,
     infer_schema,
     infer_schema_with_report,
+    iter_presets,
+    load_curation,
+    load_preset,
     load_source,
+    read_curation,
     sample_source,
+    write_preset,
     write_spec,
 )
 from .profiles import (
@@ -187,6 +208,23 @@ __all__ = [
     "SourceSpecError",
     "fingerprint_document",
     "load_source",
+    # compiler — 큐레이션 오버레이(curation)
+    "CURATION_SCHEMA_VERSION",
+    "Curation",
+    "CurationError",
+    "CurationReport",
+    "OperationCuration",
+    "ParamCuration",
+    "PresetInfo",
+    "ServiceCuration",
+    "apply_curation",
+    "compile_preset",
+    "default_presets_root",
+    "iter_presets",
+    "load_curation",
+    "load_preset",
+    "read_curation",
+    "write_preset",
     # compiler — 스키마 추론(inference)
     "InferenceConfig",
     "InferenceError",

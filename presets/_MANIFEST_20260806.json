@@ -1,0 +1,194 @@
+[
+  {
+    "폴더": "_raw",
+    "파일": "15000115/datagokr_15000115_detail_tables.json",
+    "bytes": 8943,
+    "sha256": "b7377bf5f31213b9db65f402ca040b2026a2f36791e78b0c3b369c283f2dea3a",
+    "출처": "상세 페이지 내 요청변수/출력결과 표 1차 추출(중간 산출물)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/datagokr_15000115_detailfuncs.json",
+    "bytes": 46442,
+    "sha256": "c42979c4a9985f8094f312e3e27aaf62b09f68f0605824df82c13b31a8f4059c",
+    "출처": "POST https://www.data.go.kr/tcs/dss/selectApiDetailFunction.do (oprtinSeqNo 20283~20290) 조각 8종 구조화",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/datagokr_15000115_openapi.html",
+    "bytes": 209824,
+    "sha256": "19e4272568ab69e5088917e3ffac72d844a352e487552154306e24af8d29aa2a",
+    "출처": "https://www.data.go.kr/data/15000115/openapi.do",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/detailfunc_20283.html",
+    "bytes": 14576,
+    "sha256": "0eeb7ad4035155046b05976db0888356943f18a00936cdfa452e5df5e3d61af4",
+    "출처": "POST https://www.data.go.kr/tcs/dss/selectApiDetailFunction.do (oprtinSeqNo=20283, publicDataPk=15000115)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/detailfunc_20284.html",
+    "bytes": 14340,
+    "sha256": "787f95a97a4bdc9e8e7d3a82c95e04abea69e5b80def534be117c841a7246d84",
+    "출처": "POST https://www.data.go.kr/tcs/dss/selectApiDetailFunction.do (oprtinSeqNo=20284, publicDataPk=15000115)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/detailfunc_20285.html",
+    "bytes": 14167,
+    "sha256": "7b73edf7d9f3f52d3bead6e149aa7b436582642724879685e04ef4e94b70f51d",
+    "출처": "POST https://www.data.go.kr/tcs/dss/selectApiDetailFunction.do (oprtinSeqNo=20285, publicDataPk=15000115)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/detailfunc_20286.html",
+    "bytes": 13527,
+    "sha256": "37454102ff32bb00c550adb12da5ff51d420ecf72476130c0ebf37b7eb929174",
+    "출처": "POST https://www.data.go.kr/tcs/dss/selectApiDetailFunction.do (oprtinSeqNo=20286, publicDataPk=15000115)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/detailfunc_20287.html",
+    "bytes": 11896,
+    "sha256": "3f17bf344dca917785b37d59e2e65486fb7a03d55af60dc7ad2de6e3681e5b8e",
+    "출처": "POST https://www.data.go.kr/tcs/dss/selectApiDetailFunction.do (oprtinSeqNo=20287, publicDataPk=15000115)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/detailfunc_20288.html",
+    "bytes": 15260,
+    "sha256": "bbb89506a8678cf91ca09b042a9879d02f912fc57b8aec91d36db0ccf8c8256c",
+    "출처": "POST https://www.data.go.kr/tcs/dss/selectApiDetailFunction.do (oprtinSeqNo=20288, publicDataPk=15000115)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/detailfunc_20289.html",
+    "bytes": 11475,
+    "sha256": "c5aa16be0519df82c73936affa793c59b92111c82b4363e2fa4538f3940f6f46",
+    "출처": "POST https://www.data.go.kr/tcs/dss/selectApiDetailFunction.do (oprtinSeqNo=20289, publicDataPk=15000115)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/detailfunc_20290.html",
+    "bytes": 13487,
+    "sha256": "178b85b74a4753cace444c21720a2df3afa740337163a851bb9072cefc97bd64",
+    "출처": "POST https://www.data.go.kr/tcs/dss/selectApiDetailFunction.do (oprtinSeqNo=20290, publicDataPk=15000115)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15000115/NOTE_참고문서_미보존.md",
+    "bytes": 2034,
+    "sha256": "32e499c7415248db814097ecb382bb5609851965ff80437755527cbc0c90f9b3",
+    "출처": "(작성물) 참고문서 docx 미보존 사유·채록 사실",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15081808/datagokr_15081808_openapi.html",
+    "bytes": 197171,
+    "sha256": "e0c56f8d4594df8af0b97928da7424d1f634b9df561b2a41aae14f94c47f1173",
+    "출처": "https://www.data.go.kr/data/15081808/openapi.do",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15081808/headers_nts-businessman_v1.txt",
+    "bytes": 298,
+    "sha256": "e1d3bbb9fbf425148f14f03036f750e7192563d84230548a7cf0341d9b9bfdb5",
+    "출처": "https://infuser.odcloud.kr/oas/docs?namespace=nts-businessman/v1 (응답 헤더)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15081808/infuser_oas_nts-businessman_v1.json",
+    "bytes": 3534,
+    "sha256": "9bc7a85212894755fc3722291666326fbf763279bc5d3bb531dedd47ad3e1bbb",
+    "출처": "https://infuser.odcloud.kr/oas/docs?namespace=nts-businessman/v1",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15081808/infuser_stages_28493_api-docs.json",
+    "bytes": 16309,
+    "sha256": "30142c0d97774e53abf04c605db9281170a47137c56f3e3185c703733ce57226",
+    "출처": "https://infuser.odcloud.kr/api/stages/28493/api-docs?1728017570963",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15101612/datagokr_15101612_openapi.html",
+    "bytes": 208519,
+    "sha256": "6cd29e0e5c1218617917d8f102b3c9e90d72b3d6046039d05560fc54b2212d04",
+    "출처": "https://www.data.go.kr/data/15101612/openapi.do",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15101612/datagokr_gw_swagger_15101612.json",
+    "bytes": 16771,
+    "sha256": "74eb54d7000aef75b8cf7691cbcb6ee41795185dc2f52488470fe9397560c86b",
+    "출처": "상동 원문을 JSON.parse 후 indent=2 로 재직렬화(값 동일)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15101612/datagokr_gw_swagger_15101612.raw.json",
+    "bytes": 8634,
+    "sha256": "66dfc4f94fbc7f7729794ed622b89cbaf20cf9e8615749f42c66120535f3676d",
+    "출처": "상동 HTML 내 인라인 `const swaggerJson` 템플릿 리터럴 원문",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15101612/refdoc_관세청조회코드_v1.2.xlsx",
+    "bytes": 2039318,
+    "sha256": "63c0f6461b8f32220c87529c5682498456fe9d5527f668b15b9e231969ebf8f5",
+    "출처": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003614407&fileSn=1",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15102108/datagokr_15102108_openapi.html",
+    "bytes": 206698,
+    "sha256": "8a3fd30761badf193f50819028e88f651c0b29bd3132146bb9a9f0182f8fb904",
+    "출처": "https://www.data.go.kr/data/15102108/openapi.do",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15102108/datagokr_gw_swagger_15102108.json",
+    "bytes": 15028,
+    "sha256": "e1f5dd56d23f9bf8c79b5d2812fd38cf4f8c7ec28cda08110a58c5d315647148",
+    "출처": "상동 원문을 JSON.parse 후 indent=2 로 재직렬화(값 동일)",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_raw",
+    "파일": "15102108/datagokr_gw_swagger_15102108.raw.json",
+    "bytes": 7795,
+    "sha256": "269e175d4064e0590f07ec9ad34762dc9d416a81dfd9e2fa84201aef79876d15",
+    "출처": "상동 HTML 내 인라인 `const swaggerJson` 템플릿 리터럴 원문",
+    "취득일": "2026-08-06 (KST)"
+  },
+  {
+    "폴더": "_transcribed",
+    "파일": "15000115_rest_doc.json",
+    "bytes": 58972,
+    "sha256": "6ed1f264897e67c128c16e366127fa6c16f3a0f2187f4cae892a82f3897b16b7",
+    "출처": "(전사·가공 산출물)",
+    "취득일": "2026-08-06 (KST)"
+  }
+]

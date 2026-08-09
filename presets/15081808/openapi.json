@@ -1,0 +1,655 @@
+{
+  "components": {
+    "schemas": {
+      "StatusResponse": {
+        "properties": {
+          "data": {
+            "description": "사업자등록 상태조회 결과",
+            "items": {
+              "properties": {
+                "b_no": {
+                  "description": "사업자등록번호",
+                  "example": "0000000000",
+                  "type": "string",
+                  "xml": {
+                    "name": "BNo"
+                  }
+                },
+                "b_stt": {
+                  "description": "납세자상태(명칭):<br/>01: 계속사업자, <br/>02: 휴업자, <br/>03: 폐업자",
+                  "example": "계속사업자",
+                  "type": "string",
+                  "xml": {
+                    "name": "BStt"
+                  }
+                },
+                "b_stt_cd": {
+                  "description": "납세자상태(코드):<br/>01: 계속사업자, <br/>02: 휴업자, <br/>03: 폐업자",
+                  "example": "01",
+                  "type": "string",
+                  "xml": {
+                    "name": "BSttCd"
+                  }
+                },
+                "end_dt": {
+                  "description": "폐업일 (YYYYMMDD 포맷)",
+                  "example": "20000101",
+                  "type": "string",
+                  "xml": {
+                    "name": "EndDt"
+                  }
+                },
+                "invoice_apply_dt": {
+                  "description": "세금계산서적용일자 (YYYYMMDD 포맷)",
+                  "example": "20000101",
+                  "type": "string",
+                  "xml": {
+                    "name": "StaxInvoicePrintYnDt"
+                  }
+                },
+                "rbf_tax_type": {
+                  "description": "직전과세유형메세지(명칭):<br/>01:부가가치세 일반과세자, <br/>02:부가가치세 간이과세자, <br/>07:부가가치세 간이과세자(세금계산서 발급사업자), <br/>99:해당없음",
+                  "example": "부가가치세 일반과세자",
+                  "type": "string",
+                  "xml": {
+                    "name": "RbfTaxType"
+                  }
+                },
+                "rbf_tax_type_cd": {
+                  "description": "직전과세유형메세지(코드):<br/>01:부가가치세 일반과세자, <br/>02:부가가치세 간이과세자, <br/>07:부가가치세 간이과세자(세금계산서 발급사업자), <br/>99:해당없음",
+                  "example": "01",
+                  "type": "string",
+                  "xml": {
+                    "name": "RbfTaxTypeCd"
+                  }
+                },
+                "tax_type": {
+                  "description": "과세유형메세지(명칭):<br/>01:부가가치세 일반과세자, <br/>02:부가가치세 간이과세자, <br/>03:부가가치세 과세특례자, <br/>04:부가가치세 면세사업자, <br/>05:수익사업을 영위하지 않는 비영리법인이거나 고유번호가 부여된 단체,국가기관 등, <br/>06:고유번호가 부여된 단체, <br/>07:부가가치세 간이과세자(세금계산서 발급사업자), <br/> * 등록되지 않았거나 삭제된 경우: \"국세청에 등록되지 않은 사업자등록번호입니다\"",
+                  "example": "부가가치세 일반과세자",
+                  "type": "string",
+                  "xml": {
+                    "name": "TaxType"
+                  }
+                },
+                "tax_type_cd": {
+                  "description": "과세유형메세지(코드):<br/>01:부가가치세 일반과세자, <br/>02:부가가치세 간이과세자, <br/>03:부가가치세 과세특례자, <br/>04:부가가치세 면세사업자, <br/>05:수익사업을 영위하지 않는 비영리법인이거나 고유번호가 부여된 단체,국가기관 등, <br/>06:고유번호가 부여된 단체, <br/>07:부가가치세 간이과세자(세금계산서 발급사업자)",
+                  "example": "01",
+                  "type": "string",
+                  "xml": {
+                    "name": "TaxTypeCd"
+                  }
+                },
+                "tax_type_change_dt": {
+                  "description": "최근과세유형전환일자 (YYYYMMDD 포맷)",
+                  "example": "20000101",
+                  "type": "string",
+                  "xml": {
+                    "name": "TaxTypeChangeDt"
+                  }
+                },
+                "utcc_yn": {
+                  "description": "단위과세전환폐업여부(Y,N)",
+                  "example": "Y",
+                  "type": "string",
+                  "xml": {
+                    "name": "UtccYn"
+                  }
+                }
+              },
+              "title": "사업자등록 상태조회 결과",
+              "type": "object",
+              "xml": {
+                "name": "Item"
+              }
+            },
+            "type": "array",
+            "xml": {
+              "name": "Data",
+              "wrapped": true
+            }
+          },
+          "match_cnt": {
+            "description": "조회 매칭 수",
+            "example": 1,
+            "type": "integer",
+            "xml": {
+              "name": "MatchCnt"
+            }
+          },
+          "request_cnt": {
+            "description": "조회 요청 수",
+            "example": 1,
+            "type": "integer",
+            "xml": {
+              "name": "RequestCnt"
+            }
+          },
+          "status_code": {
+            "description": "API 상태 코드",
+            "enum": [
+              "OK"
+            ],
+            "type": "string",
+            "xml": {
+              "name": "StatusCode"
+            }
+          }
+        },
+        "title": "사업자등록 상태조회 API Response",
+        "type": "object",
+        "xml": {
+          "name": "Response"
+        }
+      },
+      "ValidateResponse": {
+        "properties": {
+          "data": {
+            "description": "사업자등록정보 진위확인 결과",
+            "items": {
+              "properties": {
+                "b_no": {
+                  "description": "사업자등록번호",
+                  "example": "0000000000",
+                  "type": "string",
+                  "xml": {
+                    "name": "BNo"
+                  }
+                },
+                "request_param": {
+                  "properties": {
+                    "b_adr": {
+                      "description": "사업장주소 (Optional)",
+                      "example": "",
+                      "type": "string",
+                      "xml": {
+                        "name": "BAdr"
+                      }
+                    },
+                    "b_nm": {
+                      "description": "상호 (Optional)",
+                      "example": "(주)테스트",
+                      "type": "string",
+                      "xml": {
+                        "name": "BNm"
+                      }
+                    },
+                    "b_no": {
+                      "description": "사업자등록번호",
+                      "example": "0000000000",
+                      "type": "string",
+                      "xml": {
+                        "name": "BNo"
+                      }
+                    },
+                    "b_sector": {
+                      "description": "주업태명 (Optional)",
+                      "example": "",
+                      "type": "string",
+                      "xml": {
+                        "name": "BSector"
+                      }
+                    },
+                    "b_type": {
+                      "description": "주종목명 (Optional)",
+                      "example": "",
+                      "type": "string",
+                      "xml": {
+                        "name": "BType"
+                      }
+                    },
+                    "corp_no": {
+                      "description": "법인등록번호 (Optional)",
+                      "example": "0000000000000",
+                      "type": "string",
+                      "xml": {
+                        "name": "CorpNo"
+                      }
+                    },
+                    "p_nm": {
+                      "description": "대표자성명1",
+                      "example": "홍길동",
+                      "type": "string",
+                      "xml": {
+                        "name": "PNm"
+                      }
+                    },
+                    "p_nm2": {
+                      "description": "대표자성명2 - 대표자성명1 이 한글이 아닌 경우, 이에 대한 한글명",
+                      "example": "홍길동",
+                      "type": "string",
+                      "xml": {
+                        "name": "PNm2"
+                      }
+                    },
+                    "start_dt": {
+                      "description": "개업일자 (YYYYMMDD 포맷)",
+                      "example": "20000101",
+                      "type": "string",
+                      "xml": {
+                        "name": "StartDt"
+                      }
+                    }
+                  },
+                  "required": [
+                    "b_no",
+                    "start_dt",
+                    "p_nm"
+                  ],
+                  "title": "사업자등록정보 진위확인 Request Body",
+                  "type": "object",
+                  "xml": {
+                    "name": "Param"
+                  }
+                },
+                "status": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "b_no": {
+                          "description": "사업자등록번호",
+                          "example": "0000000000",
+                          "type": "string",
+                          "xml": {
+                            "name": "BNo"
+                          }
+                        },
+                        "b_stt": {
+                          "description": "납세자상태(명칭):<br/>01: 계속사업자, <br/>02: 휴업자, <br/>03: 폐업자",
+                          "example": "계속사업자",
+                          "type": "string",
+                          "xml": {
+                            "name": "BStt"
+                          }
+                        },
+                        "b_stt_cd": {
+                          "description": "납세자상태(코드):<br/>01: 계속사업자, <br/>02: 휴업자, <br/>03: 폐업자",
+                          "example": "01",
+                          "type": "string",
+                          "xml": {
+                            "name": "BSttCd"
+                          }
+                        },
+                        "end_dt": {
+                          "description": "폐업일 (YYYYMMDD 포맷)",
+                          "example": "20000101",
+                          "type": "string",
+                          "xml": {
+                            "name": "EndDt"
+                          }
+                        },
+                        "invoice_apply_dt": {
+                          "description": "세금계산서적용일자 (YYYYMMDD 포맷)",
+                          "example": "20000101",
+                          "type": "string",
+                          "xml": {
+                            "name": "StaxInvoicePrintYnDt"
+                          }
+                        },
+                        "rbf_tax_type": {
+                          "description": "직전과세유형메세지(명칭):<br/>01:부가가치세 일반과세자, <br/>02:부가가치세 간이과세자, <br/>07:부가가치세 간이과세자(세금계산서 발급사업자), <br/>99:해당없음",
+                          "example": "부가가치세 일반과세자",
+                          "type": "string",
+                          "xml": {
+                            "name": "RbfTaxType"
+                          }
+                        },
+                        "rbf_tax_type_cd": {
+                          "description": "직전과세유형메세지(코드):<br/>01:부가가치세 일반과세자, <br/>02:부가가치세 간이과세자, <br/>07:부가가치세 간이과세자(세금계산서 발급사업자), <br/>99:해당없음",
+                          "example": "01",
+                          "type": "string",
+                          "xml": {
+                            "name": "RbfTaxTypeCd"
+                          }
+                        },
+                        "tax_type": {
+                          "description": "과세유형메세지(명칭):<br/>01:부가가치세 일반과세자, <br/>02:부가가치세 간이과세자, <br/>03:부가가치세 과세특례자, <br/>04:부가가치세 면세사업자, <br/>05:수익사업을 영위하지 않는 비영리법인이거나 고유번호가 부여된 단체,국가기관 등, <br/>06:고유번호가 부여된 단체, <br/>07:부가가치세 간이과세자(세금계산서 발급사업자), <br/> * 등록되지 않았거나 삭제된 경우: \"국세청에 등록되지 않은 사업자등록번호입니다\"",
+                          "example": "부가가치세 일반과세자",
+                          "type": "string",
+                          "xml": {
+                            "name": "TaxType"
+                          }
+                        },
+                        "tax_type_cd": {
+                          "description": "과세유형메세지(코드):<br/>01:부가가치세 일반과세자, <br/>02:부가가치세 간이과세자, <br/>03:부가가치세 과세특례자, <br/>04:부가가치세 면세사업자, <br/>05:수익사업을 영위하지 않는 비영리법인이거나 고유번호가 부여된 단체,국가기관 등, <br/>06:고유번호가 부여된 단체, <br/>07:부가가치세 간이과세자(세금계산서 발급사업자)",
+                          "example": "01",
+                          "type": "string",
+                          "xml": {
+                            "name": "TaxTypeCd"
+                          }
+                        },
+                        "tax_type_change_dt": {
+                          "description": "최근과세유형전환일자 (YYYYMMDD 포맷)",
+                          "example": "20000101",
+                          "type": "string",
+                          "xml": {
+                            "name": "TaxTypeChangeDt"
+                          }
+                        },
+                        "utcc_yn": {
+                          "description": "단위과세전환폐업여부(Y,N)",
+                          "example": "Y",
+                          "type": "string",
+                          "xml": {
+                            "name": "UtccYn"
+                          }
+                        }
+                      },
+                      "title": "사업자등록 상태조회 결과",
+                      "type": "object",
+                      "xml": {
+                        "name": "Item"
+                      }
+                    }
+                  ],
+                  "xml": {
+                    "name": "Status"
+                  }
+                },
+                "valid": {
+                  "description": "진위확인 결과 코드<br/>01: Valid, 02: Invalid",
+                  "enum": [
+                    "01",
+                    "02"
+                  ],
+                  "type": "string",
+                  "xml": {
+                    "name": "Valid"
+                  }
+                },
+                "valid_msg": {
+                  "description": "진위확인 결과 메세지:<br/>- valid 값이 02 인 경우: 확인할 수 없습니다<br/> - 그 외: valid_msg 프로퍼티가 return 되지 않음",
+                  "example": "",
+                  "type": "string",
+                  "xml": {
+                    "name": "ValidMsg"
+                  }
+                }
+              },
+              "title": "사업자등록정보 진위확인 결과",
+              "type": "object",
+              "xml": {
+                "name": "Item",
+                "wrapped": true
+              }
+            },
+            "type": "array",
+            "xml": {
+              "name": "Data",
+              "wrapped": true
+            }
+          },
+          "request_cnt": {
+            "description": "조회 요청 수",
+            "example": 1,
+            "type": "integer",
+            "xml": {
+              "name": "RequestCnt"
+            }
+          },
+          "status_code": {
+            "description": "API 상태 코드",
+            "enum": [
+              "OK"
+            ],
+            "type": "string",
+            "xml": {
+              "name": "StatusCode"
+            }
+          },
+          "valid_cnt": {
+            "description": "검증 Valid 수",
+            "example": 1,
+            "type": "integer",
+            "xml": {
+              "name": "ValidCnt"
+            }
+          }
+        },
+        "title": "사업자등록정보 진위확인 API Response",
+        "type": "object",
+        "xml": {
+          "name": "Response"
+        }
+      }
+    }
+  },
+  "info": {
+    "description": "국세청이 제공하는 사업자등록번호 상태조회·진위확인 API. 한 번에 최대 100건까지 조회하며, 응답은 납세자상태(계속사업자/휴업자/폐업자)와 과세유형을 코드와 명칭으로 함께 돌려준다. 조회 대상은 질의 문자열이 아니라 JSON 요청 본문에 담고, 호출은 POST 로만 받는다. 조회 결과는 개인·사업자 정보이므로 저장·재배포 전에 이용 목적을 확인할 것.",
+    "title": "국세청 사업자등록정보 진위확인·상태조회",
+    "version": "0.1.0",
+    "x-mcportal": {
+      "generation_mode": "offline",
+      "key_injection": "transport",
+      "license_note": "이용허락범위 제한 없음(data.go.kr 표기, 2026-08-06 확인)",
+      "provider": "data.go.kr",
+      "sample_count": 0,
+      "schema_inference": {
+        "conflicts": 0,
+        "truncated": false
+      },
+      "service_id": "15081808",
+      "source_fingerprint": "sha256:dfa94d9a37d64ecad3e2af900bd1a6c2216922bfd103e907bb411f12e295b0cc",
+      "source_kind": "odcloud_swagger",
+      "source_url": "https://www.data.go.kr/data/15081808/openapi.do",
+      "tool_version": "0.1.0"
+    }
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/status": {
+      "post": {
+        "description": "사업자등록번호 목록으로 휴폐업 여부와 과세유형을 조회한다. 요청 본문은 {\"b_no\": [\"0000000000\", ...]} 형태의 JSON 이고 번호는 하이픈 없는 10자리 숫자로 넣는다(요청 본문은 스펙 그대로 통과하므로 파라미터 힌트로는 표현할 수 없다). 응답의 b_stt·b_stt_cd 가 계속사업자/휴업자/폐업자를, tax_type·tax_type_cd 가 과세유형을 알려 준다. 한 번에 최대 100건. 대표자성명·개업일자까지 대조해야 한다면 진위확인 도구를 쓴다.\n\n예시 프롬프트:\n- 사업자번호 0000000000 이 지금 영업 중인지 알려줘\n- 이 번호들 중에 폐업한 곳만 골라줘\n- 거래처 사업자번호가 일반과세자인지 간이과세자인지 확인해줘",
+        "operationId": "status",
+        "parameters": [
+          {
+            "description": "응답 형식. 생략하면 JSON 으로 돌아온다. XML 이 필요할 때만 XML 을 넣는다.",
+            "example": "json",
+            "in": "query",
+            "name": "returnType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "xml"
+              ],
+              "examples": [
+                "json"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "b_no": {
+                    "description": "사업자등록번호",
+                    "items": {
+                      "example": "0000000000",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "b_no"
+                ],
+                "title": "사업자등록 상태조회 API Request",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            },
+            "description": "정상 응답"
+          }
+        },
+        "summary": "사업자등록 상태조회",
+        "tags": [
+          "사업자등록",
+          "휴폐업"
+        ]
+      }
+    },
+    "/validate": {
+      "post": {
+        "description": "사업자등록번호·대표자성명·개업일자를 함께 보내 국세청 등록정보와 일치하는지 확인한다. 요청 본문은 {\"businesses\": [{...}]} 형태이며 b_no(10자리 숫자)·start_dt(YYYYMMDD)·p_nm(대표자성명)이 필수다. 상호·법인등록번호·주업태명 같은 선택 항목을 비울 때는 키를 빼지 말고 빈 문자열을 넣는다. 요청 항목이 전부 일치하면 valid 코드 01 과 상태조회 결과가, 일치하지 않으면 02 가 돌아온다. 영업 중인지만 확인하면 되는 경우에는 상태조회 도구가 더 간단하다.\n\n예시 프롬프트:\n- 이 사업자등록증에 적힌 정보가 실제 등록정보와 맞는지 확인해줘\n- 사업자번호·대표자명·개업일자가 국세청 기록과 일치하는지 대조해줘",
+        "operationId": "validate",
+        "parameters": [
+          {
+            "description": "응답 형식. 생략하면 JSON 으로 돌아온다. XML 이 필요할 때만 XML 을 넣는다.",
+            "example": "json",
+            "in": "query",
+            "name": "returnType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "xml"
+              ],
+              "examples": [
+                "json"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "businesses": {
+                    "items": {
+                      "properties": {
+                        "b_adr": {
+                          "description": "사업장주소 (Optional)",
+                          "example": "",
+                          "type": "string",
+                          "xml": {
+                            "name": "BAdr"
+                          }
+                        },
+                        "b_nm": {
+                          "description": "상호 (Optional)",
+                          "example": "(주)테스트",
+                          "type": "string",
+                          "xml": {
+                            "name": "BNm"
+                          }
+                        },
+                        "b_no": {
+                          "description": "사업자등록번호",
+                          "example": "0000000000",
+                          "type": "string",
+                          "xml": {
+                            "name": "BNo"
+                          }
+                        },
+                        "b_sector": {
+                          "description": "주업태명 (Optional)",
+                          "example": "",
+                          "type": "string",
+                          "xml": {
+                            "name": "BSector"
+                          }
+                        },
+                        "b_type": {
+                          "description": "주종목명 (Optional)",
+                          "example": "",
+                          "type": "string",
+                          "xml": {
+                            "name": "BType"
+                          }
+                        },
+                        "corp_no": {
+                          "description": "법인등록번호 (Optional)",
+                          "example": "0000000000000",
+                          "type": "string",
+                          "xml": {
+                            "name": "CorpNo"
+                          }
+                        },
+                        "p_nm": {
+                          "description": "대표자성명1",
+                          "example": "홍길동",
+                          "type": "string",
+                          "xml": {
+                            "name": "PNm"
+                          }
+                        },
+                        "p_nm2": {
+                          "description": "대표자성명2 - 대표자성명1 이 한글이 아닌 경우, 이에 대한 한글명",
+                          "example": "홍길동",
+                          "type": "string",
+                          "xml": {
+                            "name": "PNm2"
+                          }
+                        },
+                        "start_dt": {
+                          "description": "개업일자 (YYYYMMDD 포맷)",
+                          "example": "20000101",
+                          "type": "string",
+                          "xml": {
+                            "name": "StartDt"
+                          }
+                        }
+                      },
+                      "required": [
+                        "b_no",
+                        "start_dt",
+                        "p_nm"
+                      ],
+                      "title": "사업자등록정보 진위확인 Request Body",
+                      "type": "object",
+                      "xml": {
+                        "name": "Param"
+                      }
+                    },
+                    "type": "array"
+                  }
+                },
+                "title": "사업자등록정보 진위확인 API Request",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateResponse"
+                }
+              }
+            },
+            "description": "정상 응답"
+          }
+        },
+        "summary": "사업자등록정보 진위확인",
+        "tags": [
+          "사업자등록",
+          "진위확인"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.odcloud.kr/api/nts-businessman/v1"
+    }
+  ]
+}

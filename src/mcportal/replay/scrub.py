@@ -32,8 +32,64 @@ SCRUB_PLACEHOLDER = "__SCRUBBED__"
 #: W1 동작과 동일한 기본값이므로 기존 호출부·기존 카세트는 그대로 호환된다(F10).
 DEFAULT_KEY_PARAMS: tuple[str, ...] = ("serviceKey",)
 
+#: **자격증명으로 취급하는 파라미터 이름의 정본 집합**(별칭 포함).
+#:
+#: :data:`DEFAULT_KEY_PARAMS` 는 "MCPortal 트랜스포트가 주입하는 키 이름"이라는
+#: 좁은 뜻이고, 이 상수는 "값이 새어 나가면 안 되는 이름"이라는 넓은 뜻이다.
+#: 포털·기관마다 인증 파라미터 이름이 달라서(``authKey`` · ``apiKey`` 등)
+#: ``serviceKey`` 정확 일치만 보면 다른 이름의 자격증명이 산출물로 흘러간다
+#: (2026-08-06 적대 리뷰 F4). 컴파일러(자유문자열 게이트 · 메타 예시값 흡수)와
+#: 저장 게이트가 **같은 목록**을 보도록 여기 한 곳에 둔다.
+CREDENTIAL_PARAM_NAMES: tuple[str, ...] = (
+    *DEFAULT_KEY_PARAMS,
+    "apiKey",
+    "api_key",
+    "authKey",
+    "auth_key",
+    "accessKey",
+    "access_key",
+    "secretKey",
+    "secret_key",
+)
+
 #: 퍼센트 인코딩 시퀀스(``%2B`` 등). 대소문자 양쪽 변형을 만들 때 쓴다.
 _PERCENT_RE = re.compile(r"%([0-9A-Fa-f]{2})")
+
+#: 자격증명 이름 비교용 정규화 정규식(영숫자만 남긴다).
+_CREDENTIAL_NAME_NOISE_RE = re.compile(r"[^a-z0-9]")
+
+
+def normalize_credential_name(name: str) -> str:
+    """자격증명 이름 비교용 정규형을 만든다(소문자화 + 영숫자만).
+
+    ``authKey`` · ``auth_key`` · ``AUTH-KEY`` 가 모두 ``authkey`` 가 된다.
+
+    Args:
+        name: 비교할 파라미터 이름.
+
+    Returns:
+        정규화된 이름(빈 문자열일 수 있다).
+    """
+    return _CREDENTIAL_NAME_NOISE_RE.sub("", str(name).lower())
+
+
+def is_credential_param(name: str, *, extra: Iterable[str] = ()) -> bool:
+    """이름이 자격증명 파라미터인지 대소문자·구분자를 무시하고 판정한다.
+
+    Args:
+        name: 판정할 파라미터 이름.
+        extra: 소스별로 추가할 이름(예: 그 소스의 ``key_param``).
+
+    Returns:
+        :data:`CREDENTIAL_PARAM_NAMES` 또는 ``extra`` 와 정규형이 같으면 True.
+    """
+    normalized = normalize_credential_name(name)
+    if not normalized:
+        return False
+    known = {normalize_credential_name(item) for item in CREDENTIAL_PARAM_NAMES}
+    known.update(normalize_credential_name(item) for item in extra)
+    known.discard("")
+    return normalized in known
 
 
 def effective_key_params(key_params: Sequence[str]) -> tuple[str, ...]:

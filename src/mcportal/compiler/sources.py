@@ -41,11 +41,16 @@ from enum import StrEnum
 from typing import Any
 from urllib.parse import urlsplit
 
+from ..replay.scrub import is_credential_param
+
 __all__ = [
     "CATALOG_COMMON_PARAMS",
     "CatalogEntry",
+    "GW_OPERATION_META_KEY",
     "ODCLOUD_COMMON_PARAMS",
     "OperationSpec",
+    "PARAM_ROLE_FORMAT",
+    "PARAM_ROLE_PAGINATION",
     "ParamSpec",
     "STANDARD_COMMON_PARAMS",
     "SourceKind",
@@ -220,6 +225,20 @@ ODCLOUD_COMMON_PARAMS: tuple[ParamSpec, ...] = (
         example="json",
     ),
 )
+
+#: 공통 질의 파라미터의 역할. 보강(backfill) 가능 여부를 오퍼레이션 형태로 판정한다.
+PARAM_ROLE_PAGINATION: str = "pagination"
+PARAM_ROLE_FORMAT: str = "format"
+
+#: 공통 파라미터 이름(소문자) → 역할.
+_COMMON_PARAM_ROLES: dict[str, str] = {
+    "page": PARAM_ROLE_PAGINATION,
+    "perpage": PARAM_ROLE_PAGINATION,
+    "pageno": PARAM_ROLE_PAGINATION,
+    "numofrows": PARAM_ROLE_PAGINATION,
+    "returntype": PARAM_ROLE_FORMAT,
+    "type": PARAM_ROLE_FORMAT,
+}
 
 #: 표준 REST 규약(게이트웨이 Swagger·활용가이드 문서형)의 공통 질의 파라미터 표기.
 STANDARD_COMMON_PARAMS: tuple[ParamSpec, ...] = (
@@ -678,6 +697,245 @@ def _resolve_refs(
     return node
 
 
+#: 스키마 정보량 판정의 재귀 깊이 상한(방어값).
+_MAX_SCHEMA_SCAN_DEPTH = 64
+
+#: 스칼라로 간주하는 선언 타입.
+_SCALAR_SCHEMA_TYPES: frozenset[str] = frozenset(
+    {"string", "integer", "number", "boolean", "null"}
+)
+
+#: 하나라도 있으면 "무언가를 실제로 선언했다"고 보는 키들.
+_SCHEMA_SIGNAL_KEYS: tuple[str, ...] = (
+    "enum",
+    "format",
+    "required",
+    "anyOf",
+    "oneOf",
+    "allOf",
+    "$ref",
+    "additionalProperties",
+)
+
+
+def _has_schema_signal(node: Mapping[str, Any]) -> bool:
+    """시그널 키가 **값까지 있는지** 본다(키 존재만으로는 선언이 아니다).
+
+    :data:`_SCHEMA_SIGNAL_KEYS` 를 ``key in node`` 로만 보던 판정은
+    ``{"type": "object", "properties": {}, "required": []}`` 처럼 빈 목록을
+    달아 둔 껍데기에 1점을 줬다. 그 1점이 :func:`_resolved_schema` 의 강등을
+    막아, "아무것도 말하지 않은 스키마"가 확정 스키마로 남고 샘플링·추론이
+    영원히 트리거되지 않는다 — 정찰 F-03 이 고치려던 바로 그 상태다
+    (2026-08-09 Advisor 검증 A2).
+
+    ``additionalProperties`` 만 기준이 다르다. ``false`` 는 "추가 필드를 금지
+    한다"는 **유의미한 선언**이라 falsy 라고 버리면 사실을 지우게 되므로,
+    "키가 있고 값이 빈 컨테이너(``{}`` · ``[]``)가 아니다"로 판정한다.
+
+    Args:
+        node: 판정할 스키마 노드(매핑).
+
+    Returns:
+        비어 있지 않은 시그널 키가 하나라도 있으면 True.
+    """
+    for key in _SCHEMA_SIGNAL_KEYS:
+        if key not in node:
+            continue
+        value = node[key]
+        if key == "additionalProperties":
+            if isinstance(value, (Mapping, list, tuple)) and not value:
+                continue
+            return True
+        if value:
+            return True
+    return False
+
+
+def _declared_schema_type(node: Mapping[str, Any]) -> str | None:
+    """스키마 노드가 선언한 타입을 소문자 문자열로 돌려준다(없으면 ``None``).
+
+    JSON Schema 는 ``type`` 에 배열(``["string", "null"]``)을 허용하므로, 배열이면
+    ``null`` 이 아닌 첫 항목을 대표 타입으로 본다.
+
+    Args:
+        node: 스키마 노드(매핑).
+
+    Returns:
+        소문자 타입 이름. 선언이 없거나 읽을 수 없으면 ``None``.
+    """
+    raw = node.get("type")
+    if isinstance(raw, str):
+        return raw.strip().lower() or None
+    if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
+        for item in raw:
+            if isinstance(item, str):
+                lowered = item.strip().lower()
+                if lowered and lowered != "null":
+                    return lowered
+    return None
+
+
+def _effective_schema_type(node: Mapping[str, Any]) -> str | None:
+    """정보량 판정에 쓸 **실효** 타입을 돌려준다(``type`` 생략 스키마 폴백 포함).
+
+    JSON Schema / OpenAPI 3.x 에서 ``type`` 은 선택 키워드다. ``properties`` 만
+    선언하고 ``type`` 을 생략한 스키마는 포털 스펙에서도 흔한데,
+    :func:`_declared_schema_type` 만 보면 그런 스키마가 전부 "타입 없음"으로
+    떨어져 :func:`_schema_information_score` 가 0점을 매긴다. 그 0점은
+    :func:`_resolved_schema` 의 강등으로 이어져 **선언된 응답 구조를 통째로
+    버린다**(적대 리뷰 F1, W2 대비 회귀).
+
+    폴백 규칙은 구조 키워드가 스스로 말하는 것만 인정한다.
+
+    * ``properties`` 가 **비어 있지 않은** 매핑이면 ``"object"``
+    * ``items`` 가 매핑이거나 **비어 있지 않은 배열**이면 ``"array"``
+
+    ``{"type": "object", "properties": {}}`` (선언된 필드 0개)는 폴백 대상이
+    아니므로 정찰 F-03 회귀는 그대로 유지된다.
+
+    Args:
+        node: 스키마 노드(매핑).
+
+    Returns:
+        소문자 타입 이름. 선언도 폴백도 없으면 ``None``.
+    """
+    declared = _declared_schema_type(node)
+    if declared is not None:
+        return declared
+    properties = node.get("properties")
+    if isinstance(properties, Mapping) and properties:
+        return "object"
+    if _is_tuple_items(node.get("items")) or isinstance(node.get("items"), Mapping):
+        return "array"
+    return None
+
+
+def _is_tuple_items(value: Any) -> bool:
+    """``items`` 가 draft-04 튜플 표기(배열)인지 판정한다.
+
+    JSON Schema draft-04 는 ``"items": [ {...}, {...} ]`` 로 위치별 원소 스키마를
+    선언할 수 있고, 포털이 배포하는 Swagger 2.0 문서는 draft-04 기반이라 이
+    표기가 유효하다. 그런데 :func:`_schema_information_score` 는 ``items`` 를
+    매핑으로만 보고 있어서 **원소 타입을 선언한 배열이 0점으로 폐기**됐다
+    (2026-08-09 Advisor 검증 A3). 문자열도 시퀀스라 명시적으로 제외한다.
+
+    Args:
+        value: ``items`` 키의 값.
+
+    Returns:
+        비어 있지 않은 배열형 시퀀스면 True.
+    """
+    return (
+        isinstance(value, Sequence)
+        and not isinstance(value, (str, bytes))
+        and bool(value)
+    )
+
+
+def _strip_empty_properties(node: Any) -> Any:
+    """선언 타입이 object 가 아닌 노드의 빈 ``properties`` 키를 버린다.
+
+    게이트웨이 스웨거는 스칼라 리프마다 ``"properties": {}`` 를 덧붙인다(정찰
+    F-11). 유효하지만 산출 OpenAPI 로 그대로 새어 나가 잡음이 된다. 선언 타입이
+    ``object`` 인 노드의 빈 ``properties`` 는 "필드가 없다"는 사실 자체이므로
+    남긴다(그 사실이 :func:`_schema_information_score` 의 판정 근거가 된다).
+
+    Args:
+        node: 정규화할 노드(매핑·시퀀스·스칼라 아무거나).
+
+    Returns:
+        원본을 변형하지 않은 새 값.
+    """
+    if isinstance(node, Mapping):
+        declared = _declared_schema_type(node)
+        cleaned: dict[str, Any] = {}
+        for key, value in node.items():
+            name = str(key)
+            if (
+                name == "properties"
+                and declared != "object"
+                and isinstance(value, Mapping)
+                and not value
+            ):
+                continue
+            cleaned[name] = _strip_empty_properties(value)
+        return cleaned
+    if isinstance(node, (list, tuple)):
+        return [_strip_empty_properties(item) for item in node]
+    return node
+
+
+def _schema_information_score(node: Any, *, depth: int = 0) -> int:
+    """스키마가 담고 있는 '실제 선언'의 개수를 센다.
+
+    ``{"type": "object", "properties": {}}`` 같은 껍데기는 0점이 되어야 한다.
+    빈 ``{}`` 는 이미 막고 있었지만 껍데기 객체는 통과했고, 그 결과
+    :func:`unresolved_schema_operations` 가 빈 튜플을 돌려주어 샘플링·추론이
+    영원히 트리거되지 않았다(정찰 F-03).
+
+    점수 규칙(재귀):
+
+    * ``enum`` · ``format`` · ``required`` · ``anyOf`` · ``oneOf`` · ``allOf`` ·
+      ``$ref`` · ``additionalProperties`` 중 하나라도 **값까지 있으면** +1
+      (:func:`_has_schema_signal`)
+    * 실효 타입(:func:`_effective_schema_type`)이 스칼라면 +1
+    * ``object`` 면 ``properties`` 각 값의 점수 합. 단 ``properties`` 가 비어
+      있지 않으면 **최소 1점**이다 — 필드 이름을 하나라도 선언한 것은 그 자체가
+      선언이며, 타입이 안 붙었다고 통째로 버리면 미확정 건수를 부풀린다.
+    * ``array`` 면 ``items`` 의 점수. draft-04 튜플 표기(배열)면 각 원소 점수의
+      합이다(원소가 아무것도 선언하지 않으면 0).
+    * 그 밖(빈 매핑·구조 키워드도 타입도 없는 노드)은 0
+
+    2026-08-06 적대 리뷰 반영(설계 §7 G2 개정): 실효 타입 폴백과 "필드명 최소
+    1점" 바닥을 넣었다. ``{"type": "object", "properties": {}}`` 처럼 **선언된
+    필드가 0개**인 껍데기는 여전히 0점이다(정찰 F-03 회귀 유지).
+
+    2026-08-09 Advisor 검증 A2·A3 반영: 시그널 키는 값이 비어 있지 않을 때만
+    인정하고(``required: []`` 껍데기가 강등을 회피하던 구멍), ``items`` 의
+    튜플 표기를 인식한다(원소 타입을 선언한 배열이 0점으로 폐기되던 구멍).
+
+    Args:
+        node: 점수를 매길 스키마 노드.
+        depth: 현재 재귀 깊이(내부용).
+
+    Returns:
+        0 이상의 정수. 0이면 "아무것도 선언하지 않은 껍데기"다.
+    """
+    if not isinstance(node, Mapping) or not node:
+        return 0
+    if depth >= _MAX_SCHEMA_SCAN_DEPTH:
+        # 상한까지 내려갔다는 것은 이미 충분히 깊은 구조라는 뜻이다. 여기서 0을
+        # 돌려주면 깊은 정상 스키마가 껍데기로 오판되므로 1로 접는다(방어값).
+        return 1
+    if _has_schema_signal(node):
+        return 1
+    declared = _effective_schema_type(node)
+    if declared in _SCALAR_SCHEMA_TYPES:
+        return 1
+    if declared == "object":
+        properties = node.get("properties")
+        if not isinstance(properties, Mapping) or not properties:
+            return 0
+        total = sum(
+            _schema_information_score(value, depth=depth + 1)
+            for _, value in sorted(
+                properties.items(), key=lambda item: str(item[0])
+            )
+        )
+        # 필드 이름을 하나라도 선언했으면 최소 1점(타입 미선언 리프 방어).
+        return max(1, total)
+    if declared == "array":
+        items = node.get("items")
+        if _is_tuple_items(items):
+            # 튜플 표기는 원소마다 별도 스키마다. 원소 점수의 합이 곧 이 배열이
+            # 실제로 선언한 정보량이다(하나도 선언하지 않았으면 자연히 0).
+            return sum(
+                _schema_information_score(item, depth=depth + 1) for item in items
+            )
+        return _schema_information_score(items, depth=depth + 1)
+    return 0
+
+
 def _resolved_schema(raw: Any, document: Mapping[str, Any]) -> dict[str, Any] | None:
     """스키마 노드를 인라인 해석한다. 비었거나 매핑이 아니면 ``None``(추론 대상)."""
     if not isinstance(raw, Mapping) or not raw:
@@ -685,7 +943,12 @@ def _resolved_schema(raw: Any, document: Mapping[str, Any]) -> dict[str, Any] | 
     resolved = _resolve_refs(raw, document)
     if not isinstance(resolved, Mapping) or not resolved:
         return None
-    return dict(resolved)
+    normalized = _strip_empty_properties(resolved)
+    if _schema_information_score(normalized) == 0:
+        # 정보량 0 = "소스가 스키마를 준 척했지만 실제로는 아무것도 말하지 않았다".
+        # None 으로 강등해 추론기가 채울 자리임을 명시한다(설계 원칙).
+        return None
+    return dict(normalized)
 
 
 # ---------------------------------------------------------------------------
@@ -717,6 +980,7 @@ def _merge_common_params(
     *,
     key_param: str,
     backfill: bool,
+    allow_pagination_backfill: bool = True,
 ) -> tuple[ParamSpec, ...]:
     """공통 질의 파라미터를 보강한다.
 
@@ -726,6 +990,9 @@ def _merge_common_params(
         key_param: 인증키 파라미터명. 같은 이름의 템플릿은 추가하지 않는다(I3).
         backfill: True면 소스에 없는 공통 파라미터를 추가한다. False면 이미 있는
             파라미터의 빈 메타만 채운다(사람이 쓴 기술서·소스 선언을 존중).
+        allow_pagination_backfill: False면 :data:`PARAM_ROLE_PAGINATION` 역할의
+            공통 파라미터를 **보강하지 않는다**. 이미 소스가 선언한 파라미터의 빈
+            메타를 채우는 동작에는 영향이 없다.
 
     Returns:
         I5 정렬이 적용된 파라미터 튜플.
@@ -742,6 +1009,14 @@ def _merge_common_params(
         for template in templates:
             lowered = template.name.lower()
             if lowered in present or lowered == key_param.lower():
+                continue
+            if (
+                not allow_pagination_backfill
+                and _COMMON_PARAM_ROLES.get(lowered) == PARAM_ROLE_PAGINATION
+            ):
+                # 본문형 오퍼레이션은 조회 대상 목록을 요청 본문이 정하므로 질의문자열
+                # 페이징 파라미터가 의미를 갖지 않는다. LLM 이 채워 보내면 조용히
+                # 무시되거나 오류가 된다(정찰 F-02).
                 continue
             merged.append(template)
     return _sorted_params(merged)
@@ -1187,6 +1462,252 @@ def _swagger_operations(
     return tuple(operations)
 
 
+#: data.go.kr 게이트웨이가 표준 Swagger 옆에 함께 싣는 비표준 메타 블록.
+#: 표준 ``parameters`` 에 example·default 가 하나도 없는 문서가 흔한데, 실제
+#: 예시값은 이 블록의 ``reqList[].paramtrBassValue`` 에만 있다(정찰 F-04).
+#: 예시값이 없으면 샘플러가 필수 파라미터 값을 만들 수 없어 추론이 시작조차
+#: 못 하므로, 포털 공통 포맷으로서 흡수한다(특정 서비스 전용 분기가 아니다).
+GW_OPERATION_META_KEY: str = "swaggerOprtinVOs"
+
+#: 메타 블록에서 오퍼레이션 매칭 후보 이름을 읽어 오는 키들.
+_GW_META_NAME_KEYS: tuple[str, ...] = ("operationId", "gwSvcNm")
+
+#: 메타 블록의 요청 파라미터 목록·이름·예시값 키.
+_GW_META_REQUEST_KEY = "reqList"
+_GW_META_PARAM_NAME_KEY = "paramtrNm"
+_GW_META_PARAM_VALUE_KEY = "paramtrBassValue"
+
+#: 포털이 "값 없음"을 표기할 때 쓰는 자리표시자. 예시값으로 쓰지 않는다.
+_GW_META_EMPTY_VALUE = "-"
+
+
+def _meta_match_keys(*values: Any) -> frozenset[str]:
+    """매칭 후보 키를 만든다(ASCII 영숫자만 남기고 소문자화. 빈 값은 제외).
+
+    Args:
+        *values: 후보로 삼을 문자열들(``None`` 이나 비문자열은 무시된다).
+
+    Returns:
+        정규화된 후보 키 집합. 한글 전용 이름처럼 ASCII 영숫자가 하나도 없는
+        값은 결과에 담기지 않는다.
+    """
+    keys: set[str] = set()
+    for value in values:
+        text = _text(value)
+        if text is None:
+            continue
+        normalized = _KEY_NORMALIZE_RE.sub("", text.lower())
+        if normalized:
+            keys.add(normalized)
+    return frozenset(keys)
+
+
+def _last_path_segment(path: str) -> str:
+    """경로의 마지막 세그먼트를 돌려준다(빈 경로면 빈 문자열)."""
+    return path.rstrip("/").rsplit("/", 1)[-1]
+
+
+@dataclass(frozen=True)
+class _MetaExampleBlock:
+    """비표준 메타 블록 1개를 매칭에 쓸 형태로 정리한 것.
+
+    Attributes:
+        index: 문서 안 등장 순서(결정론적 정렬·진단용).
+        id_keys: ``operationId`` · ``gwSvcNm`` 유래 매칭키(**1순위, 정확 일치**).
+        path_keys: ``oprtinUrl`` 마지막 세그먼트 유래 매칭키(**폴백 전용**).
+        examples: ``{파라미터명 소문자: 예시값}``.
+    """
+
+    index: int
+    id_keys: frozenset[str]
+    path_keys: frozenset[str]
+    examples: Mapping[str, str]
+
+
+def _operation_meta_examples(
+    document: Mapping[str, Any], *, key_param: str
+) -> tuple[_MetaExampleBlock, ...]:
+    """비표준 메타 블록을 :class:`_MetaExampleBlock` 목록으로 만든다.
+
+    제외 규칙: **자격증명 이름**(:data:`~mcportal.replay.scrub.
+    CREDENTIAL_PARAM_NAMES` + 이 소스의 ``key_param``)과 정규형이 같은
+    파라미터, 값이 비었거나 ``"-"`` 인 항목. 소스 종류로 분기하지 않는다 —
+    블록이 **있으면** 읽고, 없으면 빈 튜플이다.
+
+    ``key_param`` 정확 일치만 제외하던 시절에는 ``authKey`` · ``apiKey`` 처럼
+    다른 이름으로 선언된 인증 파라미터의 ``paramtrBassValue`` 가 그대로 example
+    로 승격돼 커밋 산출물에 실렸다(적대 리뷰 F4). 시크릿 게이트
+    (:func:`~mcportal.replay.scrub.find_key_assignments`)는 ``이름=값`` 형태만
+    잡으므로 ``"example": "<값>"`` 이라는 맨값은 원리상 걸러 내지 못한다.
+
+    Args:
+        document: 스펙 문서 원문.
+        key_param: 이 소스의 인증키 파라미터명(자격증명 목록에 더해진다).
+
+    Returns:
+        메타 블록 순서를 보존한 :class:`_MetaExampleBlock` 튜플.
+    """
+    blocks = document.get(GW_OPERATION_META_KEY)
+    if not isinstance(blocks, Sequence) or isinstance(blocks, (str, bytes)):
+        return ()
+    table: list[_MetaExampleBlock] = []
+    for index, block in enumerate(blocks):
+        if not isinstance(block, Mapping):
+            continue
+        id_keys = _meta_match_keys(*(block.get(key) for key in _GW_META_NAME_KEYS))
+        url = _text(block.get("oprtinUrl"))
+        path_keys = (
+            _meta_match_keys(_last_path_segment(urlsplit(url).path or url))
+            if url is not None
+            else frozenset()
+        )
+        if not id_keys and not path_keys:
+            continue
+        entries = block.get(_GW_META_REQUEST_KEY)
+        if not isinstance(entries, Sequence) or isinstance(entries, (str, bytes)):
+            continue
+        examples: dict[str, str] = {}
+        for entry in entries:
+            if not isinstance(entry, Mapping):
+                continue
+            name = _text(entry.get(_GW_META_PARAM_NAME_KEY))
+            value = _scalar_text(entry.get(_GW_META_PARAM_VALUE_KEY))
+            if name is None or value is None or value == _GW_META_EMPTY_VALUE:
+                continue
+            if is_credential_param(name, extra=(str(key_param),)):
+                continue
+            examples.setdefault(name.lower(), value)
+        if examples:
+            table.append(
+                _MetaExampleBlock(
+                    index=index,
+                    id_keys=id_keys,
+                    path_keys=path_keys,
+                    examples=examples,
+                )
+            )
+    return tuple(table)
+
+
+def _match_meta_examples(
+    operations: Sequence[OperationSpec],
+    table: Sequence[_MetaExampleBlock],
+) -> dict[str, Mapping[str, str]]:
+    """(블록 → 오퍼레이션) 매칭을 **양방향으로** 확정한다.
+
+    이전 구현의 방어는 한 방향뿐이었다 — "메타 블록 2개 이상이 한 오퍼레이션에
+    매칭되면 무동작". 반대 방향(블록 1개 → 오퍼레이션 N개)에는 가드가 없었고,
+    매칭 후보에 **경로 마지막 세그먼트**가 섞여 있어서 ``/v1/getList`` 와
+    ``/v2/getList`` 처럼 접두사만 다른 오퍼레이션이 같은 키(``getlist``)로
+    축약됐다. 그 결과 메타 블록이 없는 오퍼레이션이 남의 예시값을 상속했다
+    (적대 리뷰 F3).
+
+    규칙:
+
+    1. **1순위 — ``operation_id`` 정확 일치.** 블록의 ``id_keys`` 와 오퍼레이션
+       식별자 매칭키가 겹치면 그 쌍만 본다. 이렇게 확정된 블록은 "소비됨"으로
+       표시해 폴백 후보에서 뺀다(모호성을 스스로 만들지 않는다).
+    2. **2순위 — 경로 세그먼트 폴백.** 1순위 매칭이 하나도 없는 오퍼레이션만,
+       아직 소비되지 않은 블록을 대상으로 경로 세그먼트까지 후보에 넣는다.
+    3. 한 오퍼레이션에 블록이 2개 이상 붙으면 그 오퍼레이션은 무동작.
+    4. 한 블록이 오퍼레이션 2개 이상에 붙으면 **그 블록 전체를 무효화**한다.
+
+    "추측으로 값을 만드는 것보다 값이 없는 편이 낫다"는 설계 원칙을 양방향으로
+    지키는 지점이다.
+
+    Args:
+        operations: 매칭 대상 오퍼레이션들.
+        table: :func:`_operation_meta_examples` 가 만든 블록 목록.
+
+    Returns:
+        ``{operation_id: 예시값 표}``. 매칭이 확정된 오퍼레이션만 담긴다.
+    """
+    if not table:
+        return {}
+
+    id_candidates: dict[str, frozenset[str]] = {}
+    path_candidates: dict[str, frozenset[str]] = {}
+    for operation in operations:
+        id_candidates[operation.operation_id] = _meta_match_keys(
+            operation.operation_id
+        )
+        path_candidates[operation.operation_id] = _meta_match_keys(
+            _last_path_segment(operation.path)
+        )
+
+    # 1순위: operation_id 정확 일치.
+    primary: dict[str, list[_MetaExampleBlock]] = {}
+    consumed: set[int] = set()
+    for operation in operations:
+        candidates = id_candidates[operation.operation_id]
+        if not candidates:
+            continue
+        hits = [block for block in table if block.id_keys & candidates]
+        if hits:
+            primary[operation.operation_id] = hits
+            consumed.update(block.index for block in hits)
+
+    # 2순위: 1순위가 없는 오퍼레이션만, 소비되지 않은 블록을 경로까지 열어 본다.
+    assigned: dict[str, _MetaExampleBlock] = {}
+    for operation in operations:
+        hits = primary.get(operation.operation_id)
+        if hits is None:
+            candidates = (
+                id_candidates[operation.operation_id]
+                | path_candidates[operation.operation_id]
+            )
+            if not candidates:
+                continue
+            hits = [
+                block
+                for block in table
+                if block.index not in consumed
+                and (block.id_keys | block.path_keys) & candidates
+            ]
+        if len(hits) != 1:
+            continue  # 규칙 3: 모호하면 아무것도 적용하지 않는다.
+        assigned[operation.operation_id] = hits[0]
+
+    # 규칙 4: 한 블록이 2개 이상 오퍼레이션에 붙었으면 그 블록을 통째로 버린다.
+    usage: dict[int, int] = {}
+    for block in assigned.values():
+        usage[block.index] = usage.get(block.index, 0) + 1
+    return {
+        operation_id: block.examples
+        for operation_id, block in assigned.items()
+        if usage[block.index] == 1
+    }
+
+
+def _apply_meta_examples(
+    operation: OperationSpec, examples: Mapping[str, str]
+) -> OperationSpec:
+    """example 이 비어 있는 파라미터만 메타 예시값으로 채운다.
+
+    소스가 선언한 사실(``enum``)과 어긋나는 값은 주입하지 않는다. 표준
+    ``parameters`` 가 ``enum: [A, B]`` 를 선언했는데 비표준 메타 블록이 ``ZZZ``
+    를 담고 있는 사례가 실재하며(설계 §15 M6 예견), 그대로 실으면 스키마를
+    자기모순으로 만들고 LLM 에게 100% 실패하는 툴콜을 가르친다(적대 리뷰 F24).
+
+    Args:
+        operation: 대상 오퍼레이션.
+        examples: :func:`_match_meta_examples` 가 확정한 예시값 표.
+
+    Returns:
+        예시값이 채워진 새 오퍼레이션(변경이 없으면 입력을 그대로 돌려준다).
+    """
+    changed = False
+    parameters: list[ParamSpec] = []
+    for param in operation.parameters:
+        if param.example is None:
+            value = examples.get(param.name.lower())
+            if value is not None and (not param.enum or value in param.enum):
+                param = replace(param, example=value)
+                changed = True
+        parameters.append(param)
+    return replace(operation, parameters=tuple(parameters)) if changed else operation
+
+
 def _load_swagger(
     document: Mapping[str, Any],
     *,
@@ -1215,6 +1736,17 @@ def _load_swagger(
         doc, version=version, key_param=key_param, fingerprint=fingerprint
     )
 
+    meta_examples = _operation_meta_examples(doc, key_param=key_param)
+    if meta_examples:
+        matched = _match_meta_examples(operations, meta_examples)
+        if matched:
+            operations = tuple(
+                _apply_meta_examples(operation, matched[operation.operation_id])
+                if operation.operation_id in matched
+                else operation
+                for operation in operations
+            )
+
     if kind is SourceKind.ODCLOUD_SWAGGER:
         templates: tuple[ParamSpec, ...] = ODCLOUD_COMMON_PARAMS
         backfill = True
@@ -1229,6 +1761,7 @@ def _load_swagger(
                 templates,
                 key_param=key_param,
                 backfill=backfill,
+                allow_pagination_backfill=operation.request_body_schema is None,
             ),
         )
         for operation in operations
@@ -1275,6 +1808,10 @@ def load_odcloud_swagger(
       메타(설명·예시·열거값)만 채우고, 없으면 선택 파라미터로 **보강**한다.
       odcloud 게이트웨이는 이 셋을 전 오퍼레이션에서 받으므로, 문서에 빠져 있어도
       MCP 도구가 페이지·응답형식을 다룰 수 있어야 한다.
+      다만 **요청 본문형 오퍼레이션**(``request_body_schema`` 가 있는 오퍼레이션)
+      에는 페이징 역할(:data:`PARAM_ROLE_PAGINATION`) 파라미터를 보강하지 않는다
+      — 조회 대상을 본문이 정하므로 질의문자열 페이징이 의미를 갖지 않는다
+      (정찰 F-02).
     * 인증키(``serviceKey``, 대소문자 무시)는 파라미터에서 제거하고 이름만
       :attr:`SourceSpec.key_param` 에 남긴다(불변식 I3).
     * 응답 스키마가 없는 오퍼레이션은 ``response_schema=None`` 으로 남겨

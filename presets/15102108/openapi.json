@@ -1,0 +1,94 @@
+{
+  "components": {
+    "schemas": {
+      "GetNewtradeListResponse": {
+        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "수출입 통관 신고 자료를 국가 구분 없이 집계한 월 단위 무역총괄 통계. 금액은 수출 FOB·수입 CIF 의 미화 달러 기준이며, 매월 15일경 신고 정정·취하를 반영해 전월까지 자료를 현행화한다. 특정 국가와의 실적이 필요하면 국가별 수출입실적 서비스를 쓴다.",
+    "title": "관세청 수출입총괄",
+    "version": "0.1.0",
+    "x-mcportal": {
+      "generation_mode": "offline",
+      "key_injection": "transport",
+      "license_note": "이용허락범위 제한 없음(data.go.kr 표기, 2026-08-06 확인)",
+      "provider": "data.go.kr",
+      "sample_count": 0,
+      "schema_inference": {
+        "conflicts": 0,
+        "truncated": false,
+        "unresolved": 1
+      },
+      "service_id": "15102108",
+      "source_fingerprint": "sha256:7cdd2373ff83888278e9ed87c49361ac6bdce3967a16e7a1fc8d1831fe817a62",
+      "source_kind": "gw_swagger",
+      "source_url": "https://www.data.go.kr/data/15102108/openapi.do",
+      "tool_version": "0.1.0"
+    }
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/getNewtradeList": {
+      "get": {
+        "description": "월 범위로 우리나라 전체의 수출·수입 건수와 금액, 무역수지를 조회한다. 국가 구분이 없는 총계이며 응답 항목은 기간·수출건수·수출금액·수입건수·수입금액·무역수지다. 특정 국가와의 실적이나 국가별 순위가 필요하면 국가별 수출입실적 조회 도구를 쓴다.\n\n예시 프롬프트:\n- 2016년 1월 우리나라 전체 수출입 실적 알려줘\n- 2015년 한 해 월별 무역수지 추이를 정리해줘",
+        "operationId": "getNewtradeList",
+        "parameters": [
+          {
+            "description": "조회 종료 연월. YYYYMM 6자리. 시작 연월보다 앞선 값을 넣으면 안 된다.",
+            "example": "201601",
+            "in": "query",
+            "name": "endYymm",
+            "required": true,
+            "schema": {
+              "examples": [
+                "201601"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "조회 시작 연월. YYYYMM 6자리로 넣는다(예: 201601). 종료 연월과 같은 값이어도 된다.",
+            "example": "201601",
+            "in": "query",
+            "name": "strtYymm",
+            "required": true,
+            "schema": {
+              "examples": [
+                "201601"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetNewtradeListResponse"
+                }
+              }
+            },
+            "description": "정상 응답",
+            "x-mcportal": {
+              "upstream_media_type": "application/xml"
+            }
+          }
+        },
+        "summary": "수출입총괄 조회",
+        "tags": [
+          "무역통계",
+          "수출입"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://apis.data.go.kr/1220000/Newtrade"
+    }
+  ]
+}

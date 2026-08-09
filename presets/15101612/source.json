@@ -1,0 +1,500 @@
+{
+  "document": {
+    "basePath": "",
+    "definitions": {
+      "body": {
+        "properties": {
+          "items": {
+            "$ref": "#/definitions/items"
+          }
+        },
+        "type": "object"
+      },
+      "getNationtradeList_response": {
+        "properties": {
+          "body": {
+            "description": "body",
+            "properties": {
+              "items": {
+                "description": "items",
+                "properties": {
+                  "item": {
+                    "description": "item",
+                    "properties": {
+                      "balPayments": {
+                        "description": "무역수지(달러)",
+                        "type": "number"
+                      },
+                      "expCnt": {
+                        "description": "수출건수",
+                        "type": "number"
+                      },
+                      "expDlr": {
+                        "description": "수출금액(달러)",
+                        "type": "number"
+                      },
+                      "impCnt": {
+                        "description": "수입건수",
+                        "type": "number"
+                      },
+                      "impDlr": {
+                        "description": "수입금액(달러)",
+                        "type": "number"
+                      },
+                      "statCd": {
+                        "description": "국가코드",
+                        "type": "string"
+                      },
+                      "statCdCntnKor1": {
+                        "description": "국가",
+                        "type": "string"
+                      },
+                      "year": {
+                        "description": "기간",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "header": {
+            "description": "header",
+            "properties": {
+              "resultCode": {
+                "description": "결과코드",
+                "type": "string"
+              },
+              "resultMsg": {
+                "description": "결과메시지",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "header": {
+        "properties": {
+          "resultCode": {
+            "description": "결과코드",
+            "type": "string"
+          },
+          "resultMsg": {
+            "description": "결과메시지",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "item": {
+        "properties": {
+          "balPayments": {
+            "description": "무역수지(달러)",
+            "type": "number"
+          },
+          "expCnt": {
+            "description": "수출건수",
+            "type": "number"
+          },
+          "expDlr": {
+            "description": "수출금액(달러)",
+            "type": "number"
+          },
+          "impCnt": {
+            "description": "수입건수",
+            "type": "number"
+          },
+          "impDlr": {
+            "description": "수입금액(달러)",
+            "type": "number"
+          },
+          "statCd": {
+            "description": "국가코드",
+            "type": "string"
+          },
+          "statCdCntnKor1": {
+            "description": "국가",
+            "type": "string"
+          },
+          "year": {
+            "description": "기간",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "items": {
+        "properties": {
+          "item": {
+            "$ref": "#/definitions/item"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "host": "apis.data.go.kr/1220000/nationtrade",
+    "info": {
+      "description": "수출입신고 통관업무처리 절차를 기초로 수집한 무역자료를 국가별 기준으로 수출입무역통계입니다. 국가분류는 무역통계부호상의 국가별 ISO 코드 분류기준에 의하며, 수출은 최종목적국을 원칙으로 하고 수입은 원산국을 원칙으로 합니다. \n수출입무역통계란 사전적 의미로 국민경제가 다른 나라와의 사이에서 행하는 화물의 교류에 관한 통계로 일국의 경제영역으로 반입(수입)되거나 반출(수출)됨으로써 그 나라의 물적 자원을 증가 또는 감소시키는 모든 상품이 기록되며, 단순히 한 나라를 통과하는 물품(통과물품)이나 일시적으로 반입 또는 반출되는 물품은 그 나라의 물적 자원량을 증가시키거나 감소시키지 않기 때문에 무역통계에 포함되지 않습니다. 작성할 때의 기준이 되는 무역통계지역은 지리적·행정적·국민 경제적 관점에서 정해지며, 우리나라를 포함한 대부분 국가의 경우 관세법이 포괄적으로 적용되는 영역을 의미하는 관세영역과 무역통계지역은 개념적으로 일치합니다. 따라서 관세영역을 넘어서 행해지는 화물의 교류 통계가 무역통계라 할 수 있습니다. 우리나라는 수입은 CIF금액기준으로, 수출은 FOB 금액기준으로 집계합니다. HS Code란 모든 상품에 고유번호를 부여하는 국제적 상품분류체계를 말합니다. 매월 15일경 수출입 신고의 정정, 취하 등 변경내역을 반영하여 전월까지의 자료를 현행화하고 있으며 주기는 1개월입니다. 중량은 순중량(kg)이며, 금액은 수입(과세가격미화금액), 수출(신고미화금액) 기준입니다.",
+      "title": "관세청_국가별 수출입실적(GW)",
+      "version": "1.0.0"
+    },
+    "paths": {
+      "/getNationtradeList": {
+        "get": {
+          "consumes": [
+            "application/json"
+          ],
+          "description": "국가별 수출입실적 조회 목록입니다",
+          "operationId": "getNationtradeList",
+          "produces": [
+            "application/xml"
+          ],
+          "responses": {
+            "200": {
+              "description": "성공",
+              "schema": {
+                "properties": {
+                  "body": {
+                    "description": "body",
+                    "properties": {
+                      "items": {
+                        "description": "items",
+                        "properties": {
+                          "item": {
+                            "description": "item",
+                            "properties": {
+                              "balPayments": {
+                                "description": "무역수지(달러)",
+                                "properties": {},
+                                "type": "number"
+                              },
+                              "expCnt": {
+                                "description": "수출건수",
+                                "properties": {},
+                                "type": "number"
+                              },
+                              "expDlr": {
+                                "description": "수출금액(달러)",
+                                "properties": {},
+                                "type": "number"
+                              },
+                              "impCnt": {
+                                "description": "수입건수",
+                                "properties": {},
+                                "type": "number"
+                              },
+                              "impDlr": {
+                                "description": "수입금액(달러)",
+                                "properties": {},
+                                "type": "number"
+                              },
+                              "statCd": {
+                                "description": "국가코드",
+                                "properties": {},
+                                "type": "string"
+                              },
+                              "statCdCntnKor1": {
+                                "description": "국가",
+                                "properties": {},
+                                "type": "string"
+                              },
+                              "year": {
+                                "description": "기간",
+                                "properties": {},
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "header": {
+                    "description": "header",
+                    "properties": {
+                      "resultCode": {
+                        "description": "결과코드",
+                        "properties": {},
+                        "type": "string"
+                      },
+                      "resultMsg": {
+                        "description": "결과메시지",
+                        "properties": {},
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object",
+                "xml": {
+                  "name": "response"
+                }
+              }
+            }
+          },
+          "summary": "국가별 수출입실적 조회",
+          "tags": [
+            "API 목록"
+          ]
+        },
+        "parameters": [
+          {
+            "description": "공공데이터포털에서 받은 인증키",
+            "in": "query",
+            "name": "serviceKey",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "시작년월",
+            "in": "query",
+            "name": "strtYymm",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "종료년월",
+            "in": "query",
+            "name": "endYymm",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "국가코드",
+            "in": "query",
+            "name": "cntyCd",
+            "required": false,
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "schemes": [
+      "https",
+      "http"
+    ],
+    "swagger": "2.0",
+    "swaggerOprtinVOs": [
+      {
+        "gwSvcNm": "getNationtradeList",
+        "operationId": "getNationtradeList",
+        "oprtinDc": "국가별 수출입실적 조회 목록입니다",
+        "oprtinNm": "국가별 수출입실적 조회",
+        "oprtinUrl": "https://unipass.customs.go.kr/gxt/rest/tradeStats/getNationtradeList",
+        "publicDataTyDetailCode": "PRDE02",
+        "reqList": [
+          {
+            "ck": true,
+            "paramtrBassValue": "인증키",
+            "paramtrDc": "공공데이터포털에서 받은 인증키",
+            "paramtrDivision": "필수",
+            "paramtrNm": "serviceKey",
+            "paramtrTy": "string"
+          },
+          {
+            "ck": true,
+            "paramtrBassValue": "201601",
+            "paramtrDc": "시작년월",
+            "paramtrDivision": "필수",
+            "paramtrNm": "strtYymm",
+            "paramtrTy": "string"
+          },
+          {
+            "ck": true,
+            "paramtrBassValue": "201601",
+            "paramtrDc": "종료년월",
+            "paramtrDivision": "필수",
+            "paramtrNm": "endYymm",
+            "paramtrTy": "string"
+          },
+          {
+            "ck": true,
+            "paramtrBassValue": "US",
+            "paramtrDc": "국가코드",
+            "paramtrDivision": "옵션",
+            "paramtrNm": "cntyCd",
+            "paramtrTy": "string"
+          }
+        ],
+        "resList": [
+          {
+            "arrayYn": "N",
+            "ck": true,
+            "paramtrDc": "header",
+            "paramtrDefNm": "#/definitions/header",
+            "paramtrDivision": "필수",
+            "paramtrNm": "header",
+            "paramtrTy": "object",
+            "subDefNm": "header",
+            "subParam": [
+              {
+                "arrayYn": "N",
+                "ck": true,
+                "paramtrDc": "결과코드",
+                "paramtrDefNm": "",
+                "paramtrDivision": "옵션",
+                "paramtrNm": "resultCode",
+                "paramtrTy": "string"
+              },
+              {
+                "arrayYn": "N",
+                "ck": true,
+                "paramtrDc": "결과메시지",
+                "paramtrDefNm": "",
+                "paramtrDivision": "옵션",
+                "paramtrNm": "resultMsg",
+                "paramtrTy": "string"
+              }
+            ]
+          },
+          {
+            "arrayYn": "N",
+            "ck": true,
+            "paramtrDc": "body",
+            "paramtrDefNm": "#/definitions/body",
+            "paramtrDivision": "필수",
+            "paramtrNm": "body",
+            "paramtrTy": "object",
+            "subDefNm": "body",
+            "subParam": [
+              {
+                "arrayYn": "N",
+                "ck": true,
+                "paramtrDc": "items",
+                "paramtrDefNm": "#/definitions/items",
+                "paramtrDivision": "옵션",
+                "paramtrNm": "items",
+                "paramtrTy": "object",
+                "subDefNm": "items",
+                "subParam": [
+                  {
+                    "arrayYn": "N",
+                    "ck": true,
+                    "paramtrDc": "item",
+                    "paramtrDefNm": "#/definitions/item",
+                    "paramtrDivision": "옵션",
+                    "paramtrNm": "item",
+                    "paramtrTy": "object",
+                    "subDefNm": "item",
+                    "subParam": [
+                      {
+                        "arrayYn": "N",
+                        "ck": true,
+                        "paramtrDc": "무역수지(달러)",
+                        "paramtrDefNm": "",
+                        "paramtrDivision": "옵션",
+                        "paramtrNm": "balPayments",
+                        "paramtrTy": "number"
+                      },
+                      {
+                        "arrayYn": "N",
+                        "ck": true,
+                        "paramtrDc": "수출건수",
+                        "paramtrDefNm": "",
+                        "paramtrDivision": "옵션",
+                        "paramtrNm": "expCnt",
+                        "paramtrTy": "number"
+                      },
+                      {
+                        "arrayYn": "N",
+                        "ck": true,
+                        "paramtrDc": "수출금액(달러)",
+                        "paramtrDefNm": "",
+                        "paramtrDivision": "옵션",
+                        "paramtrNm": "expDlr",
+                        "paramtrTy": "number"
+                      },
+                      {
+                        "arrayYn": "N",
+                        "ck": true,
+                        "paramtrDc": "수입건수",
+                        "paramtrDefNm": "",
+                        "paramtrDivision": "옵션",
+                        "paramtrNm": "impCnt",
+                        "paramtrTy": "number"
+                      },
+                      {
+                        "arrayYn": "N",
+                        "ck": true,
+                        "paramtrDc": "수입금액(달러)",
+                        "paramtrDefNm": "",
+                        "paramtrDivision": "옵션",
+                        "paramtrNm": "impDlr",
+                        "paramtrTy": "number"
+                      },
+                      {
+                        "arrayYn": "N",
+                        "ck": true,
+                        "paramtrDc": "국가코드",
+                        "paramtrDefNm": "",
+                        "paramtrDivision": "옵션",
+                        "paramtrNm": "statCd",
+                        "paramtrTy": "string"
+                      },
+                      {
+                        "arrayYn": "N",
+                        "ck": true,
+                        "paramtrDc": "국가",
+                        "paramtrDefNm": "",
+                        "paramtrDivision": "옵션",
+                        "paramtrNm": "statCdCntnKor1",
+                        "paramtrTy": "string"
+                      },
+                      {
+                        "arrayYn": "N",
+                        "ck": true,
+                        "paramtrDc": "기간",
+                        "paramtrDefNm": "",
+                        "paramtrDivision": "옵션",
+                        "paramtrNm": "year",
+                        "paramtrTy": "string"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "fetched_at": "2026-08-06T00:00:00+09:00",
+  "key_param": "serviceKey",
+  "license_note": "이용허락범위 제한 없음(data.go.kr 표기, 2026-08-06 확인)",
+  "mcportal_preset_source": 1,
+  "preset_id": "15101612",
+  "provenance": {
+    "acquisition": "무인증 HTTP GET. 인증키 사용 0회, 게이트웨이 데이터 호출 0회.",
+    "notes": [
+      "host 에 경로가 포함되고 basePath 가 빈 문자열이다(Swagger 2.0 위반). 포털 관용 표기로 인정하고 원문 그대로 보존한다(정찰 F-05).",
+      "표준 parameters 에 example·default 가 하나도 없고 실제 예시값은 비표준 메타 블록 swaggerOprtinVOs 에만 있다(정찰 F-04).",
+      "definitions 는 paths 에서 한 번도 참조되지 않는다(전부 인라인). 원문 그대로 보존한다(정찰 F-10).",
+      "참고문서 관세청조회코드_v1.2.xlsx(2,039,318 B)는 국가 코드 정본 출처로 _raw 에 보존했다. enum 으로 전개하지 않는다 - 코드 200여 개를 스키마에 실으면 도구 스키마가 비대해지고 코드 개정 시 조용히 상한다."
+    ],
+    "personal_data_scan": "실명·전화·이메일·사업자등록번호 실값 0건(2026-08-06 전수 스캔). 스펙에 실린 예시값은 전부 자리표시자다.",
+    "raw_files": [
+      "presets/_raw/15101612/datagokr_gw_swagger_15101612.raw.json",
+      "presets/_raw/15101612/datagokr_gw_swagger_15101612.json",
+      "presets/_raw/15101612/datagokr_15101612_openapi.html",
+      "presets/_raw/15101612/refdoc_관세청조회코드_v1.2.xlsx"
+    ],
+    "raw_sha256": "sha256:66dfc4f94fbc7f7729794ed622b89cbaf20cf9e8615749f42c66120535f3676d",
+    "spec_origin": "게이트웨이 Swagger 2.0. 별도 스펙 URL 이 없고 상세 페이지 HTML 안 const swaggerJson 템플릿 리터럴에 문서 전문이 인라인되어 있다. JS 템플릿 리터럴 규칙으로 언이스케이프한 뒤 파싱했다.",
+    "spec_url": "https://www.data.go.kr/data/15101612/openapi.do"
+  },
+  "service_id": "15101612",
+  "service_name": "관세청 국가별 수출입실적(GW)",
+  "source_kind": "gw_swagger",
+  "source_url": "https://www.data.go.kr/data/15101612/openapi.do"
+}

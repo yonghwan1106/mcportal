@@ -1,0 +1,748 @@
+{
+  "components": {
+    "schemas": {
+      "AdmrulSearchListResponse": {
+        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "type": "object"
+      },
+      "DetcSearchListResponse": {
+        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "type": "object"
+      },
+      "ExpcSearchListResponse": {
+        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "type": "object"
+      },
+      "LawSearchListResponse": {
+        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "type": "object"
+      },
+      "LicbylSearchListResponse": {
+        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "type": "object"
+      },
+      "LstrmSearchListResponse": {
+        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "type": "object"
+      },
+      "OrdinSearchListResponse": {
+        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "type": "object"
+      },
+      "TrtySearchListResponse": {
+        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "법제처가 국가법령정보센터의 자료를 공개하는 검색 API. 법령·행정규칙·자치법규·법령해석례·헌재결정례·별표서식·법령용어·조약 여덟 갈래를 각각 별도 도구로 제공하며, 도구마다 검색 대상이 고정되어 있으므로 무엇을 찾는지에 따라 도구를 골라야 한다. 모든 도구는 목록(제명·일자·소관부처 등)을 돌려주고 조문 본문은 돌려주지 않는다. 응답은 XML 단독이며 MCPortal 런타임이 JSON 으로 정규화해 준다.",
+    "title": "법제처 국가법령정보 공유서비스",
+    "version": "0.1.0",
+    "x-mcportal": {
+      "generation_mode": "offline",
+      "key_injection": "transport",
+      "license_note": "공공누리 제1유형(출처표시, data.go.kr 표기 2026-08-06 확인)",
+      "provider": "data.go.kr",
+      "sample_count": 0,
+      "schema_inference": {
+        "conflicts": 0,
+        "truncated": false,
+        "unresolved": 8
+      },
+      "service_id": "15000115",
+      "source_fingerprint": "sha256:308fdedb899f1382b71bf64420bee39f4cc0e6ca10b212afa00954ddc11a54b2",
+      "source_kind": "rest_doc_manual",
+      "source_url": "https://www.data.go.kr/data/15000115/openapi.do",
+      "tool_version": "0.1.0"
+    }
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/admrulSearchList.do": {
+      "get": {
+        "description": "훈령·예규·고시·지침 등 행정규칙을 찾는다. 행정규칙은 국회가 만든 법률이나 정부가 만든 시행령이 아니라 행정기관이 소관 업무를 처리하려고 정한 규범이다. 법률·시행령·시행규칙을 찾을 때는 법령 검색을 쓴다.\n\n예시 프롬프트:\n- 식품 표시 관련 고시가 뭐가 있는지 찾아줘\n- 고용노동부 훈령 목록 보여줘",
+        "operationId": "admrulSearchList",
+        "parameters": [
+          {
+            "description": "한 페이지에 담을 결과 수. 1~100 범위를 권장한다. 응답 메시지 크기 상한(4,000 byte)이 있으므로 크게 잡으면 잘릴 수 있다.",
+            "example": 10,
+            "in": "query",
+            "name": "numOfRows",
+            "required": true,
+            "schema": {
+              "examples": [
+                10
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "페이지 번호. 1부터 시작한다.",
+            "example": 1,
+            "in": "query",
+            "name": "pageNo",
+            "required": true,
+            "schema": {
+              "examples": [
+                1
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "검색어. 전체 목록을 받으려면 `*` 를 넣는다.",
+            "example": "*",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "default": "*",
+              "examples": [
+                "*"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "검색 대상 구분. 이 도구의 고정값은 `admrul` 이며 다른 값을 넣으면 안 된다. 다른 갈래를 찾으려면 그 갈래 전용 도구를 쓴다.",
+            "example": "admrul",
+            "in": "query",
+            "name": "target",
+            "required": true,
+            "schema": {
+              "default": "admrul",
+              "enum": [
+                "admrul"
+              ],
+              "examples": [
+                "admrul"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmrulSearchListResponse"
+                }
+              }
+            },
+            "description": "정상 응답",
+            "x-mcportal": {
+              "upstream_media_type": "application/xml"
+            }
+          }
+        },
+        "summary": "행정규칙 검색",
+        "tags": [
+          "검색",
+          "법령정보"
+        ]
+      }
+    },
+    "/detcSearchList.do": {
+      "get": {
+        "description": "헌법재판소 결정례를 찾는다. 위헌법률심판·헌법소원·권한쟁의 등 헌재가 내린 결정의 목록이다. 대법원 판례는 이 서비스에 포함되지 않는다.\n\n예시 프롬프트:\n- 집회 및 시위에 관한 법률 관련 헌재 결정례 찾아줘\n- 표현의 자유에 관한 헌법재판소 결정 목록 보여줘",
+        "operationId": "detcSearchList",
+        "parameters": [
+          {
+            "description": "한 페이지에 담을 결과 수. 1~100 범위를 권장한다. 응답 메시지 크기 상한(4,000 byte)이 있으므로 크게 잡으면 잘릴 수 있다.",
+            "example": 10,
+            "in": "query",
+            "name": "numOfRows",
+            "required": true,
+            "schema": {
+              "examples": [
+                10
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "페이지 번호. 1부터 시작한다.",
+            "example": 1,
+            "in": "query",
+            "name": "pageNo",
+            "required": true,
+            "schema": {
+              "examples": [
+                1
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "검색어. 전체 목록을 받으려면 `*` 를 넣는다.",
+            "example": "*",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "default": "*",
+              "examples": [
+                "*"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "검색 대상 구분. 이 도구의 고정값은 `detc` 이며 다른 값을 넣으면 안 된다. 다른 갈래를 찾으려면 그 갈래 전용 도구를 쓴다.",
+            "example": "detc",
+            "in": "query",
+            "name": "target",
+            "required": true,
+            "schema": {
+              "default": "detc",
+              "enum": [
+                "detc"
+              ],
+              "examples": [
+                "detc"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetcSearchListResponse"
+                }
+              }
+            },
+            "description": "정상 응답",
+            "x-mcportal": {
+              "upstream_media_type": "application/xml"
+            }
+          }
+        },
+        "summary": "헌재결정례 검색",
+        "tags": [
+          "검색",
+          "법령정보"
+        ]
+      }
+    },
+    "/expcSearchList.do": {
+      "get": {
+        "description": "법령해석례를 찾는다. 행정기관의 질의에 대해 정부가 조문의 의미를 유권해석해 회신한 기록이며, 조문이 실제 사안에 어떻게 적용되는지를 보여 준다. 법원 판례가 아니고 헌법재판소 결정도 아니다.\n\n예시 프롬프트:\n- 도로 점용료 부과에 대한 법령해석례가 있는지 찾아줘\n- 건축법 해석 사례 목록 보여줘",
+        "operationId": "expcSearchList",
+        "parameters": [
+          {
+            "description": "한 페이지에 담을 결과 수. 1~100 범위를 권장한다. 응답 메시지 크기 상한(4,000 byte)이 있으므로 크게 잡으면 잘릴 수 있다.",
+            "example": 10,
+            "in": "query",
+            "name": "numOfRows",
+            "required": true,
+            "schema": {
+              "examples": [
+                10
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "페이지 번호. 1부터 시작한다.",
+            "example": 1,
+            "in": "query",
+            "name": "pageNo",
+            "required": true,
+            "schema": {
+              "examples": [
+                1
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "검색어. 전체 목록을 받으려면 `*` 를 넣는다.",
+            "example": "*",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "default": "*",
+              "examples": [
+                "*"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "검색 대상 구분. 이 도구의 고정값은 `expc` 이며 다른 값을 넣으면 안 된다. 다른 갈래를 찾으려면 그 갈래 전용 도구를 쓴다.",
+            "example": "expc",
+            "in": "query",
+            "name": "target",
+            "required": true,
+            "schema": {
+              "default": "expc",
+              "enum": [
+                "expc"
+              ],
+              "examples": [
+                "expc"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpcSearchListResponse"
+                }
+              }
+            },
+            "description": "정상 응답",
+            "x-mcportal": {
+              "upstream_media_type": "application/xml"
+            }
+          }
+        },
+        "summary": "법령해석례 검색",
+        "tags": [
+          "검색",
+          "법령정보"
+        ]
+      }
+    },
+    "/lawSearchList.do": {
+      "get": {
+        "description": "현행 법령(법률·대통령령·총리령·부령)을 키워드로 찾는다. 결과에는 법령명·법령ID·법령일련번호·공포일자·공포번호·시행일자·소관부처·법령구분·제개정구분이 담기며 조문 본문은 들어 있지 않다. 본문이 필요하면 결과의 법령상세링크를 따라간다. 부처가 만든 훈령·예규·고시는 이 도구가 아니라 행정규칙 검색으로, 지방자치단체의 조례·규칙은 자치법규 검색으로 찾는다.\n\n예시 프롬프트:\n- 개인정보 보호법 시행일이 언제인지 알려줘\n- 산업안전보건법으로 검색해서 최근에 개정된 법령 목록 보여줘",
+        "operationId": "lawSearchList",
+        "parameters": [
+          {
+            "description": "한 페이지에 담을 결과 수. 1~100 범위를 권장한다. 응답 메시지 크기 상한(4,000 byte)이 있으므로 크게 잡으면 잘릴 수 있다.",
+            "example": 10,
+            "in": "query",
+            "name": "numOfRows",
+            "required": true,
+            "schema": {
+              "examples": [
+                10
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "페이지 번호. 1부터 시작한다.",
+            "example": 1,
+            "in": "query",
+            "name": "pageNo",
+            "required": true,
+            "schema": {
+              "examples": [
+                1
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "검색어. 전체 목록을 받으려면 `*` 를 넣는다.",
+            "example": "*",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "default": "*",
+              "examples": [
+                "*"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "검색 대상 구분. 이 도구의 고정값은 `law` 이며 다른 값을 넣으면 안 된다. 다른 갈래를 찾으려면 그 갈래 전용 도구를 쓴다.",
+            "example": "law",
+            "in": "query",
+            "name": "target",
+            "required": true,
+            "schema": {
+              "default": "law",
+              "enum": [
+                "law"
+              ],
+              "examples": [
+                "law"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LawSearchListResponse"
+                }
+              }
+            },
+            "description": "정상 응답",
+            "x-mcportal": {
+              "upstream_media_type": "application/xml"
+            }
+          }
+        },
+        "summary": "법령 검색",
+        "tags": [
+          "검색",
+          "법령정보"
+        ]
+      }
+    },
+    "/licbylSearchList.do": {
+      "get": {
+        "description": "법령에 딸린 별표(요율표·기준표·산정식 등)와 서식(신청서·신고서 양식)을 찾는다. 조문 본문이 아니라 부속 문서를 찾을 때 쓴다.\n\n예시 프롬프트:\n- 건축물대장 발급 신청 서식 찾아줘\n- 과태료 부과 기준 별표가 어디에 있는지 알려줘",
+        "operationId": "licbylSearchList",
+        "parameters": [
+          {
+            "description": "한 페이지에 담을 결과 수. 1~100 범위를 권장한다. 응답 메시지 크기 상한(4,000 byte)이 있으므로 크게 잡으면 잘릴 수 있다.",
+            "example": 10,
+            "in": "query",
+            "name": "numOfRows",
+            "required": true,
+            "schema": {
+              "examples": [
+                10
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "페이지 번호. 1부터 시작한다.",
+            "example": 1,
+            "in": "query",
+            "name": "pageNo",
+            "required": true,
+            "schema": {
+              "examples": [
+                1
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "검색어. 전체 목록을 받으려면 `*` 를 넣는다.",
+            "example": "*",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "default": "*",
+              "examples": [
+                "*"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "검색 대상 구분. 이 도구의 고정값은 `licbyl` 이며 다른 값을 넣으면 안 된다. 다른 갈래를 찾으려면 그 갈래 전용 도구를 쓴다.",
+            "example": "licbyl",
+            "in": "query",
+            "name": "target",
+            "required": true,
+            "schema": {
+              "default": "licbyl",
+              "enum": [
+                "licbyl"
+              ],
+              "examples": [
+                "licbyl"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicbylSearchListResponse"
+                }
+              }
+            },
+            "description": "정상 응답",
+            "x-mcportal": {
+              "upstream_media_type": "application/xml"
+            }
+          }
+        },
+        "summary": "별표·서식 검색",
+        "tags": [
+          "검색",
+          "법령정보"
+        ]
+      }
+    },
+    "/lstrmSearchList.do": {
+      "get": {
+        "description": "법령에 쓰인 용어의 정의를 찾는다. 어떤 용어가 어느 법에서 어떻게 정의되어 있는지 확인할 때 쓴다. 용어가 실제로 쓰인 조문 목록이 필요하면 법령 검색을 함께 쓴다.\n\n예시 프롬프트:\n- 중대재해가 법령에서 어떻게 정의돼 있는지 알려줘\n- 공작물이라는 법령용어 정의 찾아줘",
+        "operationId": "lstrmSearchList",
+        "parameters": [
+          {
+            "description": "한 페이지에 담을 결과 수. 1~100 범위를 권장한다. 응답 메시지 크기 상한(4,000 byte)이 있으므로 크게 잡으면 잘릴 수 있다.",
+            "example": 10,
+            "in": "query",
+            "name": "numOfRows",
+            "required": true,
+            "schema": {
+              "examples": [
+                10
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "페이지 번호. 1부터 시작한다.",
+            "example": 1,
+            "in": "query",
+            "name": "pageNo",
+            "required": true,
+            "schema": {
+              "examples": [
+                1
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "검색어. 전체 목록을 받으려면 `*` 를 넣는다.",
+            "example": "*",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "default": "*",
+              "examples": [
+                "*"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "검색 대상 구분. 이 도구의 고정값은 `lstrm` 이며 다른 값을 넣으면 안 된다. 다른 갈래를 찾으려면 그 갈래 전용 도구를 쓴다.",
+            "example": "lstrm",
+            "in": "query",
+            "name": "target",
+            "required": true,
+            "schema": {
+              "default": "lstrm",
+              "enum": [
+                "lstrm"
+              ],
+              "examples": [
+                "lstrm"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LstrmSearchListResponse"
+                }
+              }
+            },
+            "description": "정상 응답",
+            "x-mcportal": {
+              "upstream_media_type": "application/xml"
+            }
+          }
+        },
+        "summary": "법령용어 검색",
+        "tags": [
+          "검색",
+          "법령정보"
+        ]
+      }
+    },
+    "/ordinSearchList.do": {
+      "get": {
+        "description": "지방자치단체가 정한 조례와 규칙을 찾는다. 중앙부처 규범이 아니라 시·도·시·군·구 단위 규범이므로 같은 주제라도 지자체마다 내용이 다르다. 특정 지역의 규정을 확인할 때 쓰고, 전국에 일률 적용되는 규범은 법령 검색을 쓴다.\n\n예시 프롬프트:\n- 서울특별시 주차 관련 조례 찾아줘\n- 청년 지원 조례를 두고 있는 지자체를 뽑아줘",
+        "operationId": "ordinSearchList",
+        "parameters": [
+          {
+            "description": "한 페이지에 담을 결과 수. 1~100 범위를 권장한다. 응답 메시지 크기 상한(4,000 byte)이 있으므로 크게 잡으면 잘릴 수 있다.",
+            "example": 10,
+            "in": "query",
+            "name": "numOfRows",
+            "required": true,
+            "schema": {
+              "examples": [
+                10
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "페이지 번호. 1부터 시작한다.",
+            "example": 1,
+            "in": "query",
+            "name": "pageNo",
+            "required": true,
+            "schema": {
+              "examples": [
+                1
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "검색어. 전체 목록을 받으려면 `*` 를 넣는다.",
+            "example": "*",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "default": "*",
+              "examples": [
+                "*"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "검색 대상 구분. 이 도구의 고정값은 `ordin` 이며 다른 값을 넣으면 안 된다. 다른 갈래를 찾으려면 그 갈래 전용 도구를 쓴다.",
+            "example": "ordin",
+            "in": "query",
+            "name": "target",
+            "required": true,
+            "schema": {
+              "default": "ordin",
+              "enum": [
+                "ordin"
+              ],
+              "examples": [
+                "ordin"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrdinSearchListResponse"
+                }
+              }
+            },
+            "description": "정상 응답",
+            "x-mcportal": {
+              "upstream_media_type": "application/xml"
+            }
+          }
+        },
+        "summary": "자치법규 검색",
+        "tags": [
+          "검색",
+          "법령정보"
+        ]
+      }
+    },
+    "/trtySearchList.do": {
+      "get": {
+        "description": "대한민국이 체결한 조약을 찾는다. 양자·다자 조약의 명칭과 발효 정보를 담은 목록을 돌려준다.\n\n예시 프롬프트:\n- 한미 조세 조약을 찾아줘\n- 2020년 이후 발효된 조약 목록 보여줘",
+        "operationId": "trtySearchList",
+        "parameters": [
+          {
+            "description": "한 페이지에 담을 결과 수. 1~100 범위를 권장한다. 응답 메시지 크기 상한(4,000 byte)이 있으므로 크게 잡으면 잘릴 수 있다.",
+            "example": 10,
+            "in": "query",
+            "name": "numOfRows",
+            "required": true,
+            "schema": {
+              "examples": [
+                10
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "페이지 번호. 1부터 시작한다.",
+            "example": 1,
+            "in": "query",
+            "name": "pageNo",
+            "required": true,
+            "schema": {
+              "examples": [
+                1
+              ],
+              "type": "integer"
+            }
+          },
+          {
+            "description": "검색어. 전체 목록을 받으려면 `*` 를 넣는다.",
+            "example": "*",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "default": "*",
+              "examples": [
+                "*"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "검색 대상 구분. 이 도구의 고정값은 `trty` 이며 다른 값을 넣으면 안 된다. 다른 갈래를 찾으려면 그 갈래 전용 도구를 쓴다.",
+            "example": "trty",
+            "in": "query",
+            "name": "target",
+            "required": true,
+            "schema": {
+              "default": "trty",
+              "enum": [
+                "trty"
+              ],
+              "examples": [
+                "trty"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrtySearchListResponse"
+                }
+              }
+            },
+            "description": "정상 응답",
+            "x-mcportal": {
+              "upstream_media_type": "application/xml"
+            }
+          }
+        },
+        "summary": "조약 검색",
+        "tags": [
+          "검색",
+          "법령정보"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://apis.data.go.kr/1170000/law"
+    }
+  ]
+}

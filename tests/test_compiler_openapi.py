@@ -9,7 +9,10 @@
 from __future__ import annotations
 
 import codecs
+import importlib.util
+import json
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import pytest
@@ -24,6 +27,8 @@ from mcportal.compiler import (
     SourceSpec,
     build_openapi,
     dumps,
+    infer_schema_with_report,
+    load_source,
     write_spec,
 )
 from mcportal.compiler.openapi import (
@@ -244,8 +249,12 @@ def test_parameter_placement_covers_enum_default_example_and_array() -> None:
     page = listed[0]
     assert page["in"] == "query"
     assert page["required"] is True
-    assert page["schema"] == {"type": "integer"}
-    # 스키마 안이 아니라 파라미터 레벨. 선언 타입에 맞게 캐스팅되어 실린다.
+    # 파라미터 레벨 example 은 그대로 두되(OpenAPI 3.1 표준 위치), 스키마 안에도
+    # JSON Schema 2020-12 의 `examples` 로 같은 값을 싣는다 — FastMCP 는
+    # parameters[].schema 만 도구 입력 스키마로 옮기므로 이것이 없으면 큐레이션한
+    # 예시값이 LLM 에게 0개 도달한다(적대 리뷰 F2).
+    assert page["schema"] == {"type": "integer", "examples": [1]}
+    # 선언 타입에 맞게 캐스팅되어 실린다(단수 키는 파라미터 레벨에만).
     assert page["example"] == 1
     assert "example" not in page["schema"]
     assert page["description"] == "페이지 번호"
@@ -627,3 +636,133 @@ def test_unserializable_schema_raises_compile_error() -> None:
     with pytest.raises(CompileError) as excinfo:
         build_openapi(_source((operation,)))
     assert "JSON" in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# ⑭ 자유문자열 게이트가 오퍼레이션·파라미터까지 (2026-08-09 Advisor 검증 A4)
+# ---------------------------------------------------------------------------
+_SYNTHETIC_LEAK = (
+    "호출 예시: https://apis.example.invalid/demo/getDemoList"
+    "?serviceKey=ab12%2BCD%2F34%3D%3D&pageNo=1"
+)
+
+
+@pytest.mark.parametrize(
+    ("build_source", "expected"),
+    [
+        (
+            lambda: _source((_operation(summary=_SYNTHETIC_LEAK),)),
+            "summary",
+        ),
+        (
+            lambda: _source((_operation(description=_SYNTHETIC_LEAK),)),
+            "description",
+        ),
+        (
+            lambda: _source(
+                (_operation(parameters=(_param("pageNo", description=_SYNTHETIC_LEAK),)),)
+            ),
+            "pageNo",
+        ),
+    ],
+)
+def test_free_text_gate_covers_operation_and_parameter_text(
+    build_source: Any, expected: str
+) -> None:
+    """오퍼레이션·파라미터 설명문의 인증키 대입도 산출 전에 막는다.
+
+    게이트가 ``info.title`` · ``info.description`` · ``source_url`` ·
+    ``license_note`` 4필드만 보던 시절에는, 큐레이션이 없는 경로
+    (``curated=False`` · ``curation.json`` 부재)에서 원 스펙의 호출 예시가
+    ``build_openapi`` · ``dumps`` 를 그대로 통과했다. 파일로 쓰는 CLI 경로만
+    ``write_spec`` 이 막고 라이브러리 경로(문서 → FastMCP 도구 설명)는
+    무방비였다.
+    """
+    with pytest.raises(CompileError) as excinfo:
+        build_openapi(build_source())
+    message = str(excinfo.value)
+    assert "serviceKey" in message
+    assert "getDemoList" in message
+    assert expected in message
+
+
+def test_free_text_gate_leaves_clean_operation_text_alone() -> None:
+    """자격증명이 없는 설명문은 그대로 통과한다(과잉 차단 방지)."""
+    clean = "조회 기간을 YYYYMM 6자리로 넣는다(예: 202601)."
+    operation = _operation(
+        summary="가상 자료 목록 조회",
+        description=clean,
+        parameters=(_param("pageNo", description=clean),),
+    )
+    document = build_openapi(_source((operation,))).document
+    entry = document["paths"]["/getDemoList"]["get"]
+    assert entry["description"] == clean
+    assert entry["parameters"][0]["description"] == clean
+
+
+# ---------------------------------------------------------------------------
+# ⑮ 커밋된 데모 산출물 드리프트 (2026-08-09 Advisor 검증 A5)
+# ---------------------------------------------------------------------------
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+#: ``examples/compile_demo.py`` 의 ``main()`` 이 ``load_source`` 에 넘기는 값.
+#: 모듈 상수가 아니라 호출 인자라 여기서만 복제한다(아래 회귀가 값까지 대조한다).
+_DEMO_SOURCE_URL = "https://example.invalid/demo/openapi.json"
+
+
+def _load_compile_demo() -> ModuleType:
+    """``examples/compile_demo.py`` 를 경로 기반 스펙 로드로 읽는다.
+
+    ``examples/`` 는 패키지가 아니라 ``sys.path`` 에 없고, ``sys.path`` 를 건드리면
+    다른 테스트에 부작용이 남는다. 스크립트는 ``__main__`` 가드가 있어 임포트만
+    으로는 아무 파일도 쓰지 않으므로, 상수·함수만 안전하게 가져올 수 있다.
+    """
+    path = REPO_ROOT / "examples" / "compile_demo.py"
+    spec = importlib.util.spec_from_file_location("mcportal_compile_demo", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_committed_demo_spec_matches_current_compiler_output() -> None:
+    """커밋된 ``specs/demo/openapi.json`` 이 현행 컴파일러 산출과 바이트까지 같다.
+
+    데모 산출물은 사람이 여는 유일한 '완성품 예시'인데, 컴파일러가 바뀌어도
+    아무도 재생성을 강제하지 않아 낡은 채로 커밋에 남았다(F2 처방 이전 산출물).
+    이 회귀는 파일을 쓰지 않고 인메모리 재생성 결과와만 대조하므로, 드리프트가
+    생기면 ``examples/compile_demo.py`` 를 다시 돌리라는 신호가 된다.
+    """
+    demo = _load_compile_demo()
+    committed_path = REPO_ROOT / "specs" / "demo" / "openapi.json"
+    committed = committed_path.read_bytes()
+
+    source = load_source(
+        demo.DEMO_SWAGGER,
+        service_id=demo.SERVICE_ID,
+        service_name=demo.SERVICE_NAME,
+        source_url=_DEMO_SOURCE_URL,
+        fetched_at=demo.FETCHED_AT,
+    )
+    schema, report = infer_schema_with_report(demo.DEMO_SAMPLES)
+    compiled = build_openapi(
+        source,
+        {"getDemoList": schema},
+        options=CompileOptions(generation_mode="sampled"),
+        reports={"getDemoList": report},
+    )
+
+    assert dumps(compiled.document).encode("utf-8") == committed
+    # 복제한 source_url 이 실제 산출물의 값과 어긋나면 위 대조가 무의미해진다.
+    assert compiled.document["info"][X_MCPORTAL]["source_url"] == _DEMO_SOURCE_URL
+
+
+def test_committed_demo_spec_carries_schema_level_examples() -> None:
+    """데모 산출물이 F2 처방(스키마 안 examples)을 반영한 최신본인지 못 박는다."""
+    document = json.loads(
+        (REPO_ROOT / "specs" / "demo" / "openapi.json").read_text(encoding="utf-8")
+    )
+    parameters = document["paths"]["/getDemoList"]["get"]["parameters"]
+    by_name = {param["name"]: param for param in parameters}
+    assert by_name["pageNo"]["schema"]["examples"] == [1]
+    assert by_name["numOfRows"]["schema"]["examples"] == [10]

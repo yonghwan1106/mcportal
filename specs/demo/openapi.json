@@ -126,6 +126,9 @@
             "name": "itemId",
             "required": true,
             "schema": {
+              "examples": [
+                "A-001"
+              ],
               "type": "string"
             }
           }
@@ -157,6 +160,9 @@
             "name": "numOfRows",
             "required": true,
             "schema": {
+              "examples": [
+                10
+              ],
               "type": "integer"
             }
           },
@@ -167,6 +173,9 @@
             "name": "pageNo",
             "required": true,
             "schema": {
+              "examples": [
+                1
+              ],
               "type": "integer"
             }
           },

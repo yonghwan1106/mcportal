@@ -23,12 +23,12 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Union
 
-from ..replay.scrub import DEFAULT_KEY_PARAMS, find_key_assignments
+from ..replay.scrub import CREDENTIAL_PARAM_NAMES, find_key_assignments
 from .inference import InferenceReport
 from .sources import OperationSpec, ParamSpec, SourceSpec
 
@@ -41,6 +41,7 @@ __all__ = [
     "CompiledSpec",
     "schema_name_for",
     "build_openapi",
+    "cast_scalar",
     "dumps",
     "write_spec",
 ]
@@ -77,17 +78,9 @@ _TOOL_MEDIA_TYPE = "application/json"
 #: 자유문자열 메타(스펙 원본 URL·라이선스 메모·설명)에서 걸러 낼 인증키 이름들.
 #: 파라미터에는 2차 방어선이 있는데 사람이 손으로 채우는 문자열에는 없어서,
 #: 실키가 붙은 URL을 source_url 로 기록하면 그대로 커밋 산출물이 된다.
-_FREE_TEXT_KEY_PARAMS: tuple[str, ...] = (
-    *DEFAULT_KEY_PARAMS,
-    "apiKey",
-    "api_key",
-    "authKey",
-    "auth_key",
-    "accessKey",
-    "access_key",
-    "secretKey",
-    "secret_key",
-)
+#: 정본은 :data:`mcportal.replay.scrub.CREDENTIAL_PARAM_NAMES` 다 — 컴파일러의
+#: 다른 게이트(메타 예시값 흡수·병합 게이트)와 같은 목록을 봐야 한다.
+_FREE_TEXT_KEY_PARAMS: tuple[str, ...] = CREDENTIAL_PARAM_NAMES
 
 #: path 템플릿 표현식(``{name}``)을 뽑는 정규식.
 _PATH_TEMPLATE_RE = re.compile(r"\{([^{}]+)\}")
@@ -255,7 +248,7 @@ def _validate_operation(operation: OperationSpec, source: SourceSpec) -> None:
         )
 
 
-def _cast_scalar(text: str, declared_type: str) -> Any:
+def cast_scalar(text: str, declared_type: str) -> Any:
     """문자열 스칼라를 선언된 JSON Schema 타입으로 캐스팅한다(불가하면 ``None``).
 
     ``ParamSpec.enum`` · ``default`` · ``example`` 은 :mod:`~mcportal.compiler.sources`
@@ -297,7 +290,7 @@ def _cast_all(values: tuple[str, ...], declared_type: str) -> list[Any] | None:
     """열거값 전체를 캐스팅한다. 하나라도 실패하면 ``None``(= 통째로 생략)."""
     cast: list[Any] = []
     for item in values:
-        converted = _cast_scalar(item, declared_type)
+        converted = cast_scalar(item, declared_type)
         if converted is None:
             return None
         cast.append(converted)
@@ -313,7 +306,7 @@ def _parameter_object(
     준 원 순서를 그대로 보존한다.
 
     ``enum``·``default``·``example`` 은 선언된 타입으로 캐스팅해서 싣는다
-    (:func:`_cast_scalar`). 캐스팅할 수 없는 값은 **그 키를 통째로 생략**한다 —
+    (:func:`cast_scalar`). 캐스팅할 수 없는 값은 **그 키를 통째로 생략**한다 —
     만족 불가능한 스키마를 만드느니 제약을 하나 덜 싣는 편이 도구를 살린다.
     ``array`` 타입의 ``enum`` 은 원소 허용값이라는 실제 의미대로 ``items.enum``
     으로 옮긴다(배열 스키마 레벨에 스칼라 열거값을 두면 어떤 값도 만족하지 못한다).
@@ -341,7 +334,7 @@ def _parameter_object(
         if cast_enum is not None:
             schema["enum"] = cast_enum
     if param.default is not None:
-        default = _cast_scalar(str(param.default), declared)
+        default = cast_scalar(str(param.default), declared)
         if default is not None:
             schema["default"] = default
     obj: dict[str, Any] = {
@@ -353,8 +346,16 @@ def _parameter_object(
     if param.description is not None:
         obj["description"] = param.description
     if param.example is not None:
-        example = _cast_scalar(str(param.example), declared)
-        obj["example"] = str(param.example) if example is None else example
+        example = cast_scalar(str(param.example), declared)
+        value = str(param.example) if example is None else example
+        obj["example"] = value
+        # 파라미터 레벨 example 은 MCP 도구까지 도달하지 않는다. FastMCP 의
+        # OpenAPI->tool 변환은 `parameters[].schema` 만 도구 입력 스키마로 옮기고
+        # `parameters[].example` 은 버린다(2.14.7 실측). 큐레이션한 예시값이 LLM
+        # 에게 0개 도달하던 원인이므로(적대 리뷰 F2), JSON Schema 2020-12 의 표준
+        # 주석 키워드인 `examples` 로 **스키마 안에도** 같은 값을 싣는다.
+        # OpenAPI 3.1 은 스키마 방언이 2020-12 이므로 문서 유효성도 유지된다.
+        schema["examples"] = [value]
     return obj
 
 
@@ -450,6 +451,58 @@ def _guard_free_text(value: Any, *, where: str, key_param: str) -> str:
     return text
 
 
+def _guard_operation_free_text(
+    operations: Sequence[OperationSpec], *, key_param: str
+) -> None:
+    """오퍼레이션·파라미터 설명문에 남은 인증키 대입을 막는다(자유문자열 게이트 확장).
+
+    :func:`_guard_free_text` 는 ``info.title`` · ``info.description`` ·
+    ``source_url`` · ``license_note`` 4필드만 봤다. 큐레이션을 거치는 경로는
+    :mod:`~mcportal.compiler.curation` 의 병합 게이트(V8)가 오퍼레이션·파라미터
+    문자열까지 훑지만, **큐레이션이 없는 경로**(``curated=False``, ``curation.json``
+    부재)에는 그 게이트가 아예 실행되지 않는다. 그래서 원 스펙의 오퍼레이션
+    설명에 ``인증키=<값>`` 형태의 호출 예시가 있으면 :func:`build_openapi` 와
+    :func:`dumps` 를 통과해, 파일로 쓰지 않는 라이브러리 경로
+    (``document`` → FastMCP 도구 설명)로 그대로 흘러갔다. 파일 경로만 막는
+    :func:`write_spec` 과 대칭이 되도록 산출 직전에 접는다
+    (2026-08-09 Advisor 검증 A4).
+
+    자격증명 이름 목록은 F4 처방대로 :data:`_FREE_TEXT_KEY_PARAMS` 정본을 쓴다.
+
+    Args:
+        operations: 산출 대상 오퍼레이션들.
+        key_param: 이 소스의 인증키 파라미터 이름.
+
+    Raises:
+        CompileError: 어느 오퍼레이션·파라미터의 어느 필드인지 밝히며 막는다.
+    """
+    for operation in operations:
+        operation_id = str(operation.operation_id)
+        if operation.summary is not None:
+            _guard_free_text(
+                operation.summary,
+                where=f"오퍼레이션 {operation_id}의 summary",
+                key_param=key_param,
+            )
+        if operation.description is not None:
+            _guard_free_text(
+                operation.description,
+                where=f"오퍼레이션 {operation_id}의 description",
+                key_param=key_param,
+            )
+        for param in operation.parameters:
+            if param.description is None:
+                continue
+            _guard_free_text(
+                param.description,
+                where=(
+                    f"오퍼레이션 {operation_id}의 파라미터 "
+                    f"{param.name}의 description"
+                ),
+                key_param=key_param,
+            )
+
+
 def build_openapi(
     source: SourceSpec,
     response_schemas: Mapping[str, Mapping[str, Any]] | None = None,
@@ -473,8 +526,9 @@ def build_openapi(
 
     Raises:
         CompileError: operations 가 비었거나, IR 불변식(§4-1)이 깨졌거나,
-            인증키 파라미터가 남아 있거나, 필수 메타(title·server_url)를 결정할 수
-            없을 때.
+            인증키 파라미터가 남아 있거나, 자유문자열(메타·오퍼레이션·파라미터
+            설명)에 인증키 대입이 남아 있거나, 필수 메타(title·server_url)를
+            결정할 수 없을 때.
     """
     if not source.operations:
         raise CompileError(
@@ -494,6 +548,10 @@ def build_openapi(
         )
     # (path, method) 오름차순 — 결정론(I4). IR이 이미 정렬돼 있어도 방어적으로 고정한다.
     selected.sort(key=lambda operation: (str(operation.path), str(operation.method).upper()))
+
+    key_param = str(source.key_param)
+    # 큐레이션 없는 경로에는 병합 게이트가 없다. 자유문자열 검사를 산출 전에 건다.
+    _guard_operation_free_text(selected, key_param=key_param)
 
     title = options.title or source.service_name
     if not title:
@@ -572,7 +630,6 @@ def build_openapi(
         "key_injection": _KEY_INJECTION,
         "schema_inference": {"conflicts": conflict_count, "truncated": truncated},
     }
-    key_param = str(source.key_param)
     if source.source_url is not None:
         meta["source_url"] = _guard_free_text(
             source.source_url, where="SourceSpec.source_url", key_param=key_param

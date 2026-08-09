@@ -1,0 +1,107 @@
+{
+  "components": {
+    "schemas": {
+      "GetNationtradeListResponse": {
+        "description": "응답 스키마 미확정(샘플링 미수행)",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "수출입 통관 신고 자료를 국가별로 집계한 월 단위 무역통계. 국가 분류는 무역통계부호의 국가 코드 기준이고, 수출은 최종목적국·수입은 원산국을 원칙으로 한다. 금액은 수출 FOB·수입 CIF 의 미화 달러 기준이며, 매월 15일경 신고 정정·취하를 반영해 전월까지 자료를 현행화한다. 국가 구분 없이 전체 합계만 필요하면 수출입총괄 서비스를 쓴다.",
+    "title": "관세청 국가별 수출입실적",
+    "version": "0.1.0",
+    "x-mcportal": {
+      "generation_mode": "offline",
+      "key_injection": "transport",
+      "license_note": "이용허락범위 제한 없음(data.go.kr 표기, 2026-08-06 확인)",
+      "provider": "data.go.kr",
+      "sample_count": 0,
+      "schema_inference": {
+        "conflicts": 0,
+        "truncated": false,
+        "unresolved": 1
+      },
+      "service_id": "15101612",
+      "source_fingerprint": "sha256:76db39aeabda9714a68783e4cf15a60e46e60bbf9baf58f4b52f7d486d350ad9",
+      "source_kind": "gw_swagger",
+      "source_url": "https://www.data.go.kr/data/15101612/openapi.do",
+      "tool_version": "0.1.0"
+    }
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/getNationtradeList": {
+      "get": {
+        "description": "월 범위와 국가 코드로 수출·수입 건수와 금액, 무역수지를 조회한다. 특정 국가를 조회하려면 국가 코드를 지정한다. 국가 코드를 생략했을 때의 응답 범위(전체 국가별 내역인지 합계인지)는 실키 검증 전이라 미확정이다. 응답 항목은 국가코드·국가명·기간·수출건수·수출금액·수입건수·수입금액·무역수지이며 금액 단위는 미화 달러다. 국가 구분이 필요 없는 총계만 원하면 수출입총괄 조회 도구를 쓴다.\n\n예시 프롬프트:\n- 2016년 1월 대미 수출입 실적 알려줘\n- 2015년 1월부터 12월까지 베트남 수출입 추이를 뽑아줘\n- 2016년 1월에 무역수지가 흑자였던 나라만 정리해줘",
+        "operationId": "getNationtradeList",
+        "parameters": [
+          {
+            "description": "조회 종료 연월. YYYYMM 6자리. 시작 연월보다 앞선 값을 넣으면 안 된다.",
+            "example": "201601",
+            "in": "query",
+            "name": "endYymm",
+            "required": true,
+            "schema": {
+              "examples": [
+                "201601"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "조회 시작 연월. YYYYMM 6자리로 넣는다(예: 201601). 종료 연월과 같은 값이어도 된다.",
+            "example": "201601",
+            "in": "query",
+            "name": "strtYymm",
+            "required": true,
+            "schema": {
+              "examples": [
+                "201601"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "국가 코드. 특정 국가를 조회하려면 코드를 지정한다. 코드를 생략했을 때의 응답 범위(전체 국가별 내역인지 합계인지)는 실키 검증 전이라 미확정이다. 대표값은 US(미국)·CN(중국)·JP(일본)·VN(베트남)·DE(독일)이다. 전체 목록은 관세청 무역통계부호의 국가 코드 분류를 따르며, 정본은 리포의 presets/_raw/15101612/refdoc_관세청조회코드_v1.2.xlsx 의 '국가코드' 시트다.",
+            "example": "US",
+            "in": "query",
+            "name": "cntyCd",
+            "required": false,
+            "schema": {
+              "examples": [
+                "US"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetNationtradeListResponse"
+                }
+              }
+            },
+            "description": "정상 응답",
+            "x-mcportal": {
+              "upstream_media_type": "application/xml"
+            }
+          }
+        },
+        "summary": "국가별 수출입실적 조회",
+        "tags": [
+          "무역통계",
+          "수출입"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://apis.data.go.kr/1220000/nationtrade"
+    }
+  ]
+}

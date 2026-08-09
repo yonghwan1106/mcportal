@@ -748,3 +748,426 @@ def test_no_secret_material_in_specs() -> None:
                 param.name.lower() != source.key_param.lower()
                 for param in operation.parameters
             )
+
+
+# ---------------------------------------------------------------------------
+# 15. 어댑터 일반화 회귀 (W3: 실전 형식 차이 F-02·F-03·F-04·F-11 흡수)
+#
+# 아래 네 절은 전부 "포털 문서의 일반 형태"에 대한 규칙이며 특정 서비스 전용
+# 분기가 아니다. 픽스처는 여기서도 100% 합성이다.
+# ---------------------------------------------------------------------------
+def _swagger2(paths: dict[str, Any], *, host: str, **extra: Any) -> dict[str, Any]:
+    """합성 swagger 2.0 문서 골격."""
+    document: dict[str, Any] = {
+        "swagger": "2.0",
+        "info": {"title": "가상 회귀 서비스"},
+        "host": host,
+        "basePath": "/0000007/regress",
+        "schemes": ["https"],
+        "paths": paths,
+    }
+    document.update(extra)
+    return document
+
+
+def _ok_response(schema: dict[str, Any] | None = None) -> dict[str, Any]:
+    """200 응답 1개짜리 responses 블록."""
+    entry: dict[str, Any] = {"description": "정상"}
+    if schema is not None:
+        entry["schema"] = schema
+    return {"200": entry}
+
+
+# --- F-02: 본문형 오퍼레이션의 페이징 유령 인자 ----------------------------
+def test_pagination_backfill_skips_body_operations() -> None:
+    """요청 본문형 오퍼레이션에는 페이징 공통 파라미터를 보강하지 않는다(F-02).
+
+    조회 대상을 본문이 정하므로 질의문자열 페이징은 의미가 없다. 응답 형식
+    역할(returnType)은 그대로 보강한다 — odcloud 공식 안내가 질의 문자열 전달을
+    명시하기 때문이다.
+    """
+    document = _swagger2(
+        {
+            "/bodyOp": {
+                "post": {
+                    "operationId": "bodyOp",
+                    "parameters": [
+                        {
+                            "in": "body",
+                            "name": "body",
+                            "required": True,
+                            "schema": {
+                                "type": "object",
+                                "required": ["ids"],
+                                "properties": {
+                                    "ids": {"type": "array", "items": {"type": "string"}}
+                                },
+                            },
+                        }
+                    ],
+                    "responses": _ok_response({"type": "object", "properties": {"n": {"type": "integer"}}}),
+                }
+            },
+            "/queryOp": {
+                "get": {
+                    "operationId": "queryOp",
+                    "responses": _ok_response({"type": "object", "properties": {"n": {"type": "integer"}}}),
+                }
+            },
+        },
+        host="api.odcloud.invalid",
+    )
+    source = load_odcloud_swagger(document, service_id="00000007")
+    operations = _operations(source)
+
+    body_params = _params(operations["bodyOp"])
+    assert operations["bodyOp"].request_body_schema is not None
+    assert "page" not in body_params
+    assert "perPage" not in body_params
+    assert "returnType" in body_params  # 형식 역할은 유지된다
+
+    # 질의형 오퍼레이션의 기존 동작은 그대로다(회귀 방지).
+    assert {"page", "perPage", "returnType"} <= set(_params(operations["queryOp"]))
+
+
+def test_declared_pagination_params_are_still_enriched_on_body_operations() -> None:
+    """소스가 직접 선언한 페이징 파라미터는 본문형이어도 지우지 않는다.
+
+    보강(backfill)만 건너뛴다 — 소스 선언이 정본이라는 원칙은 그대로다.
+    """
+    document = _swagger2(
+        {
+            "/bodyOp": {
+                "post": {
+                    "operationId": "bodyOp",
+                    "parameters": [
+                        {
+                            "in": "body",
+                            "name": "body",
+                            "schema": {
+                                "type": "object",
+                                "properties": {"ids": {"type": "string"}},
+                            },
+                        },
+                        {"name": "page", "in": "query", "type": "integer"},
+                    ],
+                    "responses": _ok_response({"type": "object", "properties": {"n": {"type": "integer"}}}),
+                }
+            }
+        },
+        host="api.odcloud.invalid",
+    )
+    params = _params(load_odcloud_swagger(document, service_id="00000007").operations[0])
+    assert "page" in params
+    assert params["page"].description == ODCLOUD_COMMON_PARAMS[0].description
+    assert "perPage" not in params  # 보강은 여전히 건너뛴다
+
+
+# --- F-03/F-11: 정보량 0인 껍데기 스키마 강등과 빈 properties 제거 --------
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "object", "properties": {}},
+        {"type": "array", "items": {"type": "object", "properties": {}}},
+        {"type": "array"},
+        {"description": "설명만 있다"},
+    ],
+)
+def test_empty_shell_schema_is_demoted_to_none(schema: dict[str, Any]) -> None:
+    """정보량 0인 스키마는 None으로 강등돼 추론 대상이 된다(정찰 F-03).
+
+    빈 ``{}`` 는 이전부터 막고 있었지만 ``{"type":"object","properties":{}}`` 같은
+    껍데기는 통과해, unresolved_schema_operations 가 빈 튜플을 돌려주고 샘플링·
+    추론이 영원히 트리거되지 않았다.
+
+    ⚠️ 2026-08-06 적대 리뷰(설계 §7 G2 개정)로 두 사례가 이 목록에서 **빠졌다**:
+    ``{"properties": {...}}``(``type`` 생략)와 ``properties`` 에 이름만 선언한
+    객체는 이제 보존된다. 근거는 :func:`test_named_fields_survive_without_type`.
+    강등이 남는 기준은 **선언된 필드가 0개**라는 사실 하나뿐이다.
+    """
+    document = _swagger2(
+        {"/x": {"get": {"operationId": "getX", "responses": _ok_response(schema)}}},
+        host="apis.example.invalid",
+    )
+    source = load_gw_swagger(document, service_id="00000007")
+    assert source.operations[0].response_schema is None
+    assert unresolved_schema_operations(source) == ("getX",)
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "object", "properties": {"a": {"type": "string"}}},
+        {"type": "array", "items": {"type": "integer"}},
+        {"type": "object", "properties": {}, "required": ["a"]},
+        {"type": "object", "properties": {"a": {"type": "object", "properties": {"b": {"type": "integer"}}}}},
+    ],
+)
+def test_informative_schema_survives(schema: dict[str, Any]) -> None:
+    """실제 선언이 하나라도 있으면 강등하지 않는다(과잉 강등 방지)."""
+    document = _swagger2(
+        {"/x": {"get": {"operationId": "getX", "responses": _ok_response(schema)}}},
+        host="apis.example.invalid",
+    )
+    source = load_gw_swagger(document, service_id="00000007")
+    assert source.operations[0].response_schema is not None
+    assert unresolved_schema_operations(source) == ()
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        # `type` 생략 + 전부 타입 선언된 하위 필드(JSON Schema 표준 형태)
+        {
+            "properties": {
+                "resultCode": {"type": "string"},
+                "items": {"type": "array", "items": {"type": "string"}},
+            }
+        },
+        # `type` 생략 + 배열(items 만 선언)
+        {"items": {"type": "object", "properties": {"id": {"type": "string"}}}},
+        # 필드 이름만 선언(타입 없음) — 이름 자체가 선언이다
+        {"type": "object", "properties": {"totalCount": {}, "items": {}}},
+        {"type": "object", "properties": {"a": {"description": "이름은 있다"}}},
+        {"type": "object", "properties": {"a": {"type": "object", "properties": {}}}},
+    ],
+)
+def test_named_fields_survive_without_type(schema: dict[str, Any]) -> None:
+    """``type`` 을 생략했거나 리프에 타입이 없어도 선언된 필드는 살아남는다.
+
+    적대 리뷰 F1(critical): ``type`` 은 JSON Schema/OpenAPI 3.x 의 **선택**
+    키워드인데 G2 판정이 ``type`` 없는 정상 스키마를 통째로 폐기해, v0.1.0 에서는
+    보존되던 응답 구조가 사라졌다(W2 대비 회귀). 같은 리뷰의 부수 발견대로
+    "필드 이름은 선언했지만 타입이 없다"까지 함께 지우면 미확정 건수가 부풀려져
+    **정직 고지의 방향이 반대로 어긋난다**.
+    """
+    document = _swagger2(
+        {"/x": {"get": {"operationId": "getX", "responses": _ok_response(schema)}}},
+        host="apis.example.invalid",
+    )
+    source = load_gw_swagger(document, service_id="00000007")
+    assert source.operations[0].response_schema is not None
+    assert unresolved_schema_operations(source) == ()
+
+
+def test_empty_properties_noise_is_stripped_from_scalar_leaves() -> None:
+    """스칼라 리프에 덧붙은 빈 properties 는 산출물로 새어 나가지 않는다(F-11).
+
+    선언 타입이 object 인 노드의 빈 properties 는 "필드가 없다"는 사실이므로
+    남긴다 — 그 사실이 정보량 판정의 근거가 된다.
+    """
+    document = _swagger2(
+        {
+            "/x": {
+                "get": {
+                    "operationId": "getX",
+                    "responses": _ok_response(
+                        {
+                            "type": "object",
+                            "properties": {
+                                "code": {"type": "string", "properties": {}},
+                                "items": {
+                                    "type": "array",
+                                    "properties": {},
+                                    "items": {"type": "integer", "properties": {}},
+                                },
+                                "hollow": {"type": "object", "properties": {}},
+                            },
+                        }
+                    ),
+                }
+            }
+        },
+        host="apis.example.invalid",
+    )
+    schema = load_gw_swagger(document, service_id="00000007").operations[0].response_schema
+    assert schema is not None
+    assert schema["properties"]["code"] == {"type": "string"}
+    assert "properties" not in schema["properties"]["items"]
+    assert schema["properties"]["items"]["items"] == {"type": "integer"}
+    assert schema["properties"]["hollow"] == {"type": "object", "properties": {}}
+
+
+# --- F-04: 비표준 메타 블록의 예시값 흡수 ---------------------------------
+def _meta_block(operation_id: str, entries: list[dict[str, Any]]) -> dict[str, Any]:
+    """게이트웨이 비표준 메타 블록 1개."""
+    return {
+        "operationId": operation_id,
+        "gwSvcNm": operation_id,
+        "oprtinUrl": f"https://origin.example.invalid/rest/{operation_id}",
+        "reqList": entries,
+    }
+
+
+def _meta_document(blocks: list[dict[str, Any]]) -> dict[str, Any]:
+    """메타 블록을 곁들인 합성 게이트웨이 문서."""
+    return _swagger2(
+        {
+            "/getMetaList": {
+                "get": {
+                    "operationId": "getMetaList",
+                    "responses": _ok_response(
+                        {"type": "object", "properties": {"n": {"type": "integer"}}}
+                    ),
+                },
+                "parameters": [
+                    {"name": "serviceKey", "in": "query", "type": "string", "required": True},
+                    {"name": "startYm", "in": "query", "type": "string", "required": True},
+                    {"name": "endYm", "in": "query", "type": "string", "required": True},
+                    {
+                        "name": "unit",
+                        "in": "query",
+                        "type": "string",
+                        "required": False,
+                        "example": "원 문서 예시",
+                    },
+                    {"name": "blank", "in": "query", "type": "string", "required": False},
+                ],
+            }
+        },
+        host="apis.example.invalid",
+        swaggerOprtinVOs=blocks,
+    )
+
+
+def test_meta_block_fills_missing_examples_only() -> None:
+    """표준 필드에 example 이 없을 때만 비표준 메타 블록 값으로 채운다(F-04)."""
+    document = _meta_document(
+        [
+            _meta_block(
+                "getMetaList",
+                [
+                    {"paramtrNm": "serviceKey", "paramtrBassValue": "인증키"},
+                    {"paramtrNm": "startYm", "paramtrBassValue": "202601"},
+                    {"paramtrNm": "endYm", "paramtrBassValue": "202612"},
+                    {"paramtrNm": "unit", "paramtrBassValue": "메타 예시"},
+                    {"paramtrNm": "blank", "paramtrBassValue": "-"},
+                ],
+            )
+        ]
+    )
+    params = _params(load_gw_swagger(document, service_id="00000007").operations[0])
+    assert params["startYm"].example == "202601"
+    assert params["endYm"].example == "202612"
+    # 이미 있던 예시값은 덮어쓰지 않는다.
+    assert params["unit"].example == "원 문서 예시"
+    # "-" 는 "값 없음" 표기이므로 예시로 쓰지 않는다.
+    assert params["blank"].example is None
+    # 인증키는 애초에 파라미터에서 제거된다(I3).
+    assert "serviceKey" not in params
+
+
+def test_meta_block_ambiguous_match_applies_nothing() -> None:
+    """두 개 이상의 메타 블록이 한 오퍼레이션에 매칭되면 아무것도 적용하지 않는다."""
+    document = _meta_document(
+        [
+            _meta_block("getMetaList", [{"paramtrNm": "startYm", "paramtrBassValue": "202601"}]),
+            _meta_block("getMetaList", [{"paramtrNm": "startYm", "paramtrBassValue": "199001"}]),
+        ]
+    )
+    params = _params(load_gw_swagger(document, service_id="00000007").operations[0])
+    assert params["startYm"].example is None
+
+
+def test_meta_block_absence_is_a_no_op() -> None:
+    """메타 블록이 없는 문서(대다수 odcloud 문서)는 아무 영향도 받지 않는다."""
+    without = load_gw_swagger(_meta_document([]), service_id="00000007")
+    assert _params(without.operations[0])["startYm"].example is None
+    # 메타 블록 자리에 엉뚱한 타입이 와도 조용히 무시한다.
+    broken = _meta_document([])
+    broken["swaggerOprtinVOs"] = "배열이 아님"
+    assert load_gw_swagger(broken, service_id="00000007").operations[0].parameters
+
+
+def test_meta_block_matches_by_path_segment_when_operation_id_is_korean() -> None:
+    """한글 operationId 라 식별자가 경로 슬러그로 떨어져도 경로로 매칭된다."""
+    document = _meta_document(
+        [_meta_block("getMetaList", [{"paramtrNm": "startYm", "paramtrBassValue": "202601"}])]
+    )
+    document["paths"]["/getMetaList"]["get"]["operationId"] = "목록조회"
+    source = load_gw_swagger(document, service_id="00000007")
+    assert source.operations[0].operation_id == "op_get_getMetaList"
+    assert _params(source.operations[0])["startYm"].example == "202601"
+
+
+# ---------------------------------------------------------------------------
+# 16. 정보량 판정 보강 (2026-08-09 Advisor 검증 A2·A3)
+# ---------------------------------------------------------------------------
+def _response_schema(schema: dict[str, Any]) -> dict[str, Any] | None:
+    """합성 문서 1개를 흡수해 확정된 응답 스키마를 돌려준다(없으면 None)."""
+    document = _swagger2(
+        {"/x": {"get": {"operationId": "getX", "responses": _ok_response(schema)}}},
+        host="apis.example.invalid",
+    )
+    return load_gw_swagger(document, service_id="00000007").operations[0].response_schema
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        # A2: 시그널 키가 '있기만' 하면 1점을 주던 탓에 빈 목록 껍데기가 강등을 피했다.
+        {"type": "object", "properties": {}, "required": []},
+        {"type": "object", "properties": {}, "enum": []},
+        {"type": "object", "properties": {}, "allOf": []},
+        {"type": "object", "properties": {}, "additionalProperties": {}},
+        {"type": "object", "properties": {}, "format": ""},
+    ],
+)
+def test_empty_signal_keys_do_not_rescue_a_shell_schema(schema: dict[str, Any]) -> None:
+    """값이 빈 시그널 키는 선언이 아니다 — 껍데기는 그대로 강등된다(A2).
+
+    ``required: []`` 는 "필수 필드가 하나도 없다"가 아니라 대개 도구가 붙인
+    빈 자리다. 그것으로 1점을 주면 :func:`unresolved_schema_operations` 가
+    빈 튜플을 돌려주고 샘플링·추론이 영원히 트리거되지 않아, 정찰 F-03 이
+    고치려던 상태로 되돌아간다.
+    """
+    assert _response_schema(schema) is None
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        # additionalProperties: false 는 "추가 필드 금지"라는 유의미한 선언이다.
+        {"type": "object", "properties": {}, "additionalProperties": False},
+        # 값이 있는 시그널 키는 기존대로 인정한다(F-03 케이스 회귀 유지).
+        {"type": "object", "properties": {}, "required": ["a"]},
+    ],
+)
+def test_meaningful_signal_keys_still_count(schema: dict[str, Any]) -> None:
+    """False·비어 있지 않은 값은 여전히 '선언'으로 센다(과잉 강등 방지)."""
+    assert _response_schema(schema) is not None
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        # A3: draft-04 튜플 표기. 원소 타입을 선언했는데 0점으로 폐기됐다.
+        {"type": "array", "items": [{"type": "string"}, {"type": "integer"}]},
+        # type 생략 + 튜플 표기(실효 타입 폴백까지 같은 인정 기준이어야 한다).
+        {"items": [{"type": "object", "properties": {"id": {"type": "string"}}}]},
+    ],
+)
+def test_tuple_form_items_are_recognized(schema: dict[str, Any]) -> None:
+    """배열 ``items``(draft-04 튜플 표기)도 원소 선언으로 인정한다(A3).
+
+    Swagger 2.0 은 draft-04 기반이라 ``"items": [ ... ]`` 가 유효한 표기다.
+    매핑만 보던 판정은 원소 타입을 또박또박 선언한 배열 스키마를 통째로
+    버렸다(``response_schema=None``).
+    """
+    resolved = _response_schema(schema)
+    assert resolved is not None
+    assert isinstance(resolved["items"], list)
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "array", "items": []},
+        {"type": "array", "items": [{}, {"properties": {}}]},
+    ],
+)
+def test_tuple_form_items_without_declarations_still_demote(
+    schema: dict[str, Any],
+) -> None:
+    """튜플 표기여도 원소가 아무것도 선언하지 않으면 0점 그대로다."""
+    assert _response_schema(schema) is None

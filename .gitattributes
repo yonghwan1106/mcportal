@@ -1,1 +1,10 @@
 * text=auto eol=lf
+
+# 원문 증거물은 **바이트를 그대로** 보존한다.
+# `* text=auto eol=lf` 의 clean 필터가 CRLF 를 LF 로 정규화하면, 커밋된 바이트가
+# 작업트리와 달라져 presets/_MANIFEST_20260806.json 의 sha256·bytes 와 각
+# source.json 의 provenance.raw_sha256 이 **클론한 사람에게는 전부 거짓**이 된다
+# (적대 리뷰: 24항목 중 9항목이 그 대상이었다). 프리셋 규약 자체가 "원문 무손상
+# 보존"이므로 해시를 고치는 대신 정규화를 끈다.
+presets/_raw/** -text
+presets/_transcribed/** -text
