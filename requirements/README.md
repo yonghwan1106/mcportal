@@ -81,6 +81,12 @@ remedies, in order of preference:
    This is not reproducible from the command above, so it needs a check that
    fails the build when the marker goes missing.
 
+**Applied: remedy 2, on 2026-08-09** (the first CI run failed on ubuntu
+exactly as predicted above). The marker is hand-attached in
+`lock-py311.txt`; the failing check is the CI matrix itself -- an ubuntu
+job cannot install an unconditional `pywin32` pin, so a regeneration that
+drops the marker turns the whole `test` job red on the next push.
+
 pip-tools 7.x has no universal-resolution mode that would avoid this; that
 capability exists only in other resolvers.
 

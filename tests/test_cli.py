@@ -573,7 +573,9 @@ def test_key_env_missing_message_never_echoes_an_alphanumeric_key(
     :func:`~mcportal.cli._env_name_arg` 를 '이름'으로 통과하고, 옛 문면은 그
     값을 그대로 부재 오류에 실었다.
     """
-    alnum_key = "a1b2c3d4e5f6g7h8i9j0"
+    # 저엔트로피 반복 패턴을 일부러 쓴다 — gitleaks 기본 룰(generic-api-key)의
+    # 엔트로피 문턱에 걸리지 않는 자명한 합성값이어야 CI 시크릿 게이트가 조용하다.
+    alnum_key = "aaaa1111bbbb2222cccc"
     code, out, err = run_cli(
         capsys, "quota", "status", "--ledger", str(ledger_path), "--key-env", alnum_key
     )
