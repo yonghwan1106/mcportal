@@ -825,7 +825,7 @@
       "source_fingerprint": "sha256:308fdedb899f1382b71bf64420bee39f4cc0e6ca10b212afa00954ddc11a54b2",
       "source_kind": "rest_doc_manual",
       "source_url": "https://www.data.go.kr/data/15000115/openapi.do",
-      "tool_version": "0.2.0"
+      "tool_version": "0.2.1"
     }
   },
   "openapi": "3.1.0",
