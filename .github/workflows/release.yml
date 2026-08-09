@@ -78,7 +78,13 @@ jobs:
       # 버전 재업로드를 막는다). PyPI 잡보다 앞선 여기서 전부 막는다.
       # 버전이 적히는 곳은 4군데다: git 태그 · pyproject.toml ·
       # src/mcportal/__init__.py(둘은 wheel 파일명으로 수렴) · server.json.
+      # workflow_dispatch(수동 재실행)에는 태그가 없으므로 이 검사는 태그
+      # 트리거에서만 돈다(2026-08-09 수동 재실행이 태그 부재로 헛실패한 뒤
+      # 조건화). dispatch 경로에서는 이 스텝이 통째로 스킵된다 — 그 경로의
+      # 버전 정합은 발행 직전의 로컬 검증(twine 선업로드·server.json 대조)과
+      # 레지스트리 자체의 PyPI 실재 검증이 담보한다.
       - name: 태그 <-> 버전 일치 확인
+        if: github.ref_type == 'tag'
         run: |
           python - <<'PY'
           # -*- coding: utf-8 -*-
