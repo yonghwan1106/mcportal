@@ -41,6 +41,11 @@ name: release
 on:
   push:
     tags: ["v*"]
+  # 수동 재실행 통로: 태그 시점 커밋의 게이트 실패를 고친 뒤 태그를 옮기지
+  # 않고(배포된 태그는 불변) main 최신 커밋으로 발행을 재시도할 때 쓴다.
+  # 발행 대상 검증은 server.json 과 PyPI 인덱스 실제 상태가 하므로 트리거
+  # 방식과 무관하게 안전하다.
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -148,6 +148,10 @@ packages = ["src/mcportal"]
 exclude = [
     "presets/_raw",
     "presets/_transcribed",
+    # 정찰 매니페스트: 가리키는 대상(_raw)이 sdist 에서 빠지므로 목록만 실리면
+    # 죽은 참조다. release.yml 의 배포물 게이트도 이 경로를 금지한다 —
+    # 2026-08-09 v0.2.1 태그 빌드가 여기서 걸려 정책을 게이트 쪽으로 통일했다.
+    "presets/_MANIFEST_*.json",
     "presets/*/cassettes",
     "presets/*/samples",
     "benchmarks/results",
