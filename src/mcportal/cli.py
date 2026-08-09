@@ -2,7 +2,7 @@
 # Copyright 2026 Yong Park
 """MCPortal 명령행 인터페이스(표준 라이브러리 argparse 전용).
 
-네 개의 서브커맨드를 제공한다.
+다섯 개의 서브커맨드를 제공한다.
 
 * ``mcportal quota status`` - 오늘(KST) 사용량·예산·잔여를 표로 보여 준다.
   원장은 **읽기 전용**으로만 연다. CLI 는 원장을 만들지도 쓰지도 않는다.
@@ -14,6 +14,14 @@
   이 명령만 유일하게 상위 API 를 실제로 호출하므로, 인증키는 ``--key-env`` 로
   넘긴 **환경변수 이름**을 통해서만 받고(원문 인자 옵션은 만들지 않는다) 원장에
   사용량을 기록한다. 출력에는 집계 수치만 싣고 인증키·응답 원문은 싣지 않는다.
+* ``mcportal serve`` - 컴파일된 프리셋을 MCP 서버로 띄운다(표준입출력 전송).
+  기본 모드는 **카세트 replay** 라 인증키 없이 돈다. ``--key-env`` 를 주면
+  라이브로 붙는다(역시 환경변수 이름만 받는다).
+
+**stdout 은 ``serve`` 에서 프로토콜 전용이다**: MCP 의 stdio 전송이 stdout 으로
+JSON-RPC 프레임을 주고받으므로, ``serve`` 의 사람용 안내는 배너 한 줄까지 전부
+stderr 로 나간다(:func:`_emit_err`). 다른 서브커맨드는 사람용 출력이 stdout,
+오류가 stderr 라는 기존 규약을 그대로 지킨다.
 
 **인증키 취급 원칙**: 이 모듈은 인증키 원문을 **어떤 스트림에도 쓰지 않는다**.
 성공 출력은 물론 오류 메시지도 마찬가지이며, 실수로 키를 옵션 값에 넣은 경우를
@@ -137,6 +145,21 @@ SAMPLE_PERSIST_NOTE: str = (
     "인증키 없이 `mcportal compile --check` 를 돌려도 같은 바이트가 재현됩니다."
 )
 
+#: ``mcportal serve`` 의 출력 규약을 밝히는 상시 고지(stderr 로만 나간다).
+SERVE_STDIO_NOTE: str = (
+    "표준입출력(stdio)으로 MCP 프로토콜을 주고받습니다. 프레임이 섞이지 않도록 "
+    "사람용 안내는 전부 stderr 로만 씁니다. 종료는 Ctrl+C."
+)
+
+#: ``mcportal serve --key-env`` 가 실호출 모드임을 밝히는 상시 고지.
+SERVE_LIVE_NOTE: str = (
+    "live 모드는 도구를 호출할 때마다 상위 API 를 실제로 호출하고 사용량을 "
+    "원장에 기록합니다. 인증키는 지정한 환경변수에서만 읽고 출력에 싣지 않습니다."
+)
+
+#: 인증키가 새어 들어올 수 있는 문자열을 가릴 때 쓰는 표식.
+REDACTED: str = "__REDACTED__"
+
 #: 키 지문 인자의 형식(sha256 hex 앞 12자).
 _KEY_FP_RE = re.compile(r"^[0-9a-fA-F]{12}$")
 
@@ -159,6 +182,7 @@ HANDLERS: dict[str, str] = {
     "compile": "_cmd_compile",
     "presets": "_cmd_presets",
     "sample": "_cmd_sample",
+    "serve": "_cmd_serve",
 }
 
 
@@ -290,6 +314,16 @@ def _emit(lines: Iterable[str]) -> None:
         print(line)
 
 
+def _emit_err(lines: Iterable[str]) -> None:
+    """사람용 출력을 **stderr** 에 줄 단위로 쓴다.
+
+    ``mcportal serve`` 전용이다. MCP 의 stdio 전송은 stdout 으로 JSON-RPC 프레임을
+    주고받으므로 배너 한 줄이라도 stdout 에 섞이면 클라이언트의 파서가 깨진다.
+    """
+    for line in lines:
+        print(line, file=sys.stderr)
+
+
 def _emit_json(payload: Mapping[str, Any]) -> None:
     """기계가독 출력을 stdout 에 **단독으로** 쓴다(사람용 문구 혼입 금지).
 
@@ -406,15 +440,17 @@ def _package_version() -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """서브커맨드 3종을 등록한 argparse 파서를 만든다.
+    """서브커맨드 5종을 등록한 argparse 파서를 만든다.
 
     Returns:
-        ``quota status`` · ``compile`` · ``presets`` 를 가진 최상위 파서.
+        ``quota status`` · ``compile`` · ``presets`` · ``sample`` · ``serve`` 를
+        가진 최상위 파서.
     """
     parser = argparse.ArgumentParser(
         prog=PROGRAM,
         description=(
-            "MCPortal 명령행 도구 - 쿼터 현황 조회, 프리셋 컴파일, 프리셋 목록."
+            "MCPortal 명령행 도구 - 쿼터 현황 조회, 프리셋 컴파일·목록·샘플링, "
+            "MCP 서버 서빙."
         ),
     )
     parser.add_argument(
@@ -575,6 +611,48 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="기계가독 JSON 으로 출력한다."
     )
     sample_parser.set_defaults(handler="sample")
+
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="프리셋을 MCP 서버로 띄운다(stdio). 기본은 카세트 무키 replay.",
+        description=(
+            "컴파일된 프리셋 스펙을 MCP 서버로 세우고 표준입출력(stdio)으로 서빙한다. "
+            "기본 모드는 카세트 replay 라 인증키가 필요 없다. --key-env 를 주면 "
+            "라이브로 붙는다. 사람용 안내는 프로토콜 프레임과 섞이지 않도록 전부 "
+            "stderr 로 나간다."
+        ),
+    )
+    serve_parser.add_argument(
+        "preset_id",
+        metavar="PRESET_ID",
+        help="서빙할 프리셋 ID(한 번에 1건).",
+    )
+    serve_mode = serve_parser.add_mutually_exclusive_group()
+    serve_mode.add_argument(
+        "--replay",
+        action="store_true",
+        help="번들의 카세트를 재생한다(기본값). 인증키도 네트워크도 쓰지 않는다.",
+    )
+    serve_mode.add_argument(
+        "--key-env",
+        metavar="VAR",
+        type=_env_name_arg,
+        default=None,
+        help=(
+            "라이브 모드로 띄운다. 인증키가 든 환경변수의 이름만 받으며 "
+            "키 원문을 인자로 받는 옵션은 없다."
+        ),
+    )
+    serve_parser.add_argument(
+        "--presets-root", metavar="PATH", default=None, help="프리셋 루트 디렉터리."
+    )
+    serve_parser.add_argument(
+        "--name",
+        metavar="TEXT",
+        default=None,
+        help="MCP 서버 이름. 생략하면 스펙의 info.title 을 쓴다.",
+    )
+    serve_parser.set_defaults(handler="serve")
 
     return parser
 
@@ -1512,6 +1590,206 @@ def _render_sample(
     if any(report.openapi_path is not None for report in reports):
         lines.append("")
         lines.append(f"안내: {SAMPLE_PERSIST_NOTE}")
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# serve (stdio MCP 서버)
+# ---------------------------------------------------------------------------
+def _import_mcp() -> ModuleType:
+    """MCP 연결 계층(:mod:`mcportal.mcp`)을 지연 임포트한다.
+
+    ``--help`` 나 ``quota status`` 가 이 모듈을 끌어오지 않도록 서브커맨드 안에서만
+    임포트한다. 이 모듈 자체는 fastmcp 없이도 임포트되므로(가드는 사용 시점에만
+    발동한다) 여기서 걸리는 실패는 설치 손상 같은 예외 상황이다.
+
+    Raises:
+        CliError: 모듈을 임포트할 수 없을 때(한국어 안내).
+    """
+    try:
+        from mcportal import mcp
+    except ImportError as exc:
+        raise CliError(
+            "MCP 서빙에는 mcportal.mcp 모듈이 필요한데 임포트하지 못했습니다.",
+            hints=[f"임포트 오류: {exc}", "설치된 mcportal 버전을 확인하세요."],
+        ) from exc
+    return mcp
+
+
+def _require_fastmcp(mcp: ModuleType) -> None:
+    """fastmcp 설치 여부를 **서버를 세우기 전에** 확인한다.
+
+    안내 문면은 :data:`mcportal.mcp.FASTMCP_IMPORT_HINT` 를 그대로 재사용한다 -
+    같은 사실을 두 곳에 적으면 요구 버전 범위가 갈라진다.
+
+    Raises:
+        CliError: fastmcp 가 없을 때(:data:`EXIT_ERROR`).
+    """
+    try:
+        mcp.require_fastmcp()
+    except ImportError as exc:
+        raise CliError(str(exc)) from exc
+
+
+def _redact_secret(text: str, secret: str | None) -> str:
+    """문자열에서 인증키(와 그 퍼센트 인코딩 표기)를 가린다.
+
+    ``serve`` 는 하위 계층의 예외 메시지를 진단용으로 싣는다. 그 메시지에 요청
+    URL 이 들어 있으면 질의문자열의 ``serviceKey`` 가 그대로 따라 나올 수 있으므로
+    마지막 방어선을 여기에 둔다. 인코딩 표기까지 함께 가리는 이유는 트랜스포트가
+    질의문자열에 실을 때 ``quote`` 한 형태로 바꾸기 때문이다(W4 §5 와 같은 규약).
+
+    Args:
+        text: 출력 후보 문자열.
+        secret: 가릴 인증키(없으면 그대로 돌려준다).
+
+    Returns:
+        인증키 자리가 :data:`REDACTED` 로 바뀐 문자열.
+    """
+    if not secret:
+        return text
+    from urllib.parse import quote, quote_plus
+
+    variants = {secret, quote(secret, safe=""), quote_plus(secret)}
+    for variant in sorted(variants, key=len, reverse=True):
+        if variant:
+            text = text.replace(variant, REDACTED)
+    return text
+
+
+def _cassette_path_for(curation: ModuleType, info: Any) -> Path:
+    """번들의 replay 카세트 경로 ``<번들>/cassettes/<ID>.json`` 을 만든다.
+
+    디렉터리명은 큐레이션 모듈의 :data:`PRESET_CASSETTE_DIRNAME` 를 정본으로 읽는다
+    (``mcportal sample`` 이 카세트를 그 이름으로 저장하므로 두 곳이 갈라지면
+    녹화한 카세트를 재생하지 못한다).
+    """
+    dirname = str(getattr(curation, "PRESET_CASSETTE_DIRNAME", "cassettes"))
+    return Path(info.directory) / dirname / f"{info.preset_id}.json"
+
+
+def _cmd_serve(args: argparse.Namespace) -> int:
+    """``mcportal serve`` 를 수행한다(설계 §3 계약).
+
+    기본은 카세트 replay 다 - 인증키도 네트워크도 쓰지 않으므로 데모·기능시험의
+    기본값으로 삼는다. ``--key-env`` 를 주면 라이브로 붙고, 그때만 상위 API 를
+    실제로 호출한다.
+
+    실패는 **서버를 세우기 전에** 접는다. 확인 순서는 프리셋 ID → fastmcp 설치 →
+    컴파일 산출물 → (replay) 카세트 존재 / (live) 인증키 환경변수이며, 무엇이
+    없는지 한국어로 알린다. fastmcp 를 먼저 보는 이유는 그것이 설치 전제라서다 -
+    번들이 완벽해도 fastmcp 가 없으면 어느 모드로도 서빙할 수 없다.
+
+    Returns:
+        :data:`EXIT_OK`. ``server.run()`` 은 stdio 를 물고 블로킹하므로, 이 값은
+        클라이언트가 연결을 끊어 서빙이 끝난 뒤에야 돌아온다. Ctrl+C 는 진입점이
+        :data:`EXIT_INTERRUPTED` 로 접는다.
+    """
+    explicit = _explicit_root(args.presets_root)
+    curation = _import_curation()
+    root = _resolve_presets_root(curation, explicit)
+    hints = _root_search_hints(curation)
+    _warn_ignored_env_root(curation, explicit, root)
+    infos = _load_preset_infos(curation, root) if root is not None else ()
+    selected = _select_presets(
+        infos,
+        [args.preset_id],
+        search_hints=() if explicit is not None else hints,
+    )
+    info = selected[0]
+
+    live = args.key_env is not None
+    mcp = _import_mcp()
+    _require_fastmcp(mcp)
+
+    spec_path = Path(info.openapi_path)
+    if not spec_path.is_file():
+        raise CliError(
+            f"컴파일된 스펙이 없습니다: {spec_path}",
+            hints=[
+                f"`{PROGRAM} compile {info.preset_id}` 로 openapi.json 을 먼저 "
+                "생성하세요.",
+            ],
+        )
+
+    service_key: str | None = None
+    cassette_path: Path | None = None
+    if live:
+        service_key = _read_key_env(args.key_env)
+    else:
+        cassette_path = _cassette_path_for(curation, info)
+        if not cassette_path.is_file():
+            raise CliError(
+                f"replay 카세트가 없습니다: {cassette_path}",
+                hints=[
+                    "기본 모드(--replay)는 이 파일을 재생합니다.",
+                    f"`{PROGRAM} sample {info.preset_id} --key-env VAR` 로 카세트를 "
+                    "녹화하거나,",
+                    f"`{PROGRAM} serve {info.preset_id} --key-env VAR` 로 라이브 "
+                    "모드로 띄우세요.",
+                ],
+            )
+
+    try:
+        server = mcp.build_server(
+            spec_path,
+            mode="live" if live else "replay",
+            cassette_path=cassette_path,
+            service_key=service_key,
+            name=args.name,
+        )
+    except KeyboardInterrupt:
+        raise
+    except Exception as exc:  # noqa: BLE001 - 어떤 실패든 키 없이 접어 보고한다
+        raise CliError(
+            f"프리셋 {info.preset_id} 의 MCP 서버를 세우지 못했습니다.",
+            hints=[
+                _redact_secret(f"{type(exc).__name__}: {exc}", service_key),
+                "인증키 원문은 출력하지 않습니다.",
+            ],
+        ) from exc
+
+    _emit_err(
+        _render_serve(
+            info,
+            spec_path=spec_path,
+            cassette_path=cassette_path,
+            live=live,
+            name=args.name,
+        )
+    )
+    server.run()
+    return EXIT_OK
+
+
+def _render_serve(
+    info: Any,
+    *,
+    spec_path: Path,
+    cassette_path: Path | None,
+    live: bool,
+    name: str | None,
+) -> list[str]:
+    """서빙 시작 배너를 만든다(stderr 전용 · 인증키 없음).
+
+    도구 개수가 아니라 **오퍼레이션 개수**를 싣는다. 스펙→도구 변환은 fastmcp 가
+    하므로 CLI 가 결과 개수를 미리 단언할 수 없다(:mod:`mcportal.mcp` 의 위임
+    원칙).
+    """
+    lines = [
+        f"MCPortal MCP 서버 - {info.service_name} ({info.preset_id})",
+        f"스펙: {spec_path}",
+    ]
+    if name is not None:
+        lines.append(f"서버 이름: {name}")
+    if live:
+        lines.append("모드: live (인증키: 환경변수 경유 - 출력하지 않음)")
+    else:
+        lines.append(f"모드: replay (카세트: {cassette_path})")
+    lines.append(f"오퍼레이션: {int(info.operation_count)}개")
+    lines.append(f"주의: {SERVE_STDIO_NOTE}")
+    if live:
+        lines.append(f"주의: {SERVE_LIVE_NOTE}")
     return lines
 
 

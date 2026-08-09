@@ -12,12 +12,17 @@
    모든 출력이 Windows 기본 콘솔 코드페이지(cp949)로 인코딩 가능.
 4. **격리** - 프리셋 관련 검사는 실제 프리셋 번들이 아니라 ``tmp_path`` 에
    만든 **합성 번들**(가상 기관 · ``*.example.invalid``)만 쓴다.
+   유일한 예외는 ``test_serve_real_preset_exposes_eight_tools`` 다 - "커밋된
+   번들이 무키 replay 로 실제 MCP 서버가 된다"는 주장 자체가 검증 대상이라
+   합성 번들로는 증명되지 않는다. 그 테스트도 네트워크·인증키는 0건이며 커밋된
+   카세트만 읽는다.
 
 실인증키·실응답데이터·네트워크는 어디에도 없다. 합성 키는 W2 이래의 고정
 문자열 ``ab12+CD/34==`` (인코딩 표기 ``ab12%2BCD%2F34%3D%3D``)를 쓴다.
 """
 from __future__ import annotations
 
+import asyncio
 import importlib
 import json
 import os
@@ -33,7 +38,10 @@ import pytest
 import respx
 
 from mcportal import cli
+from mcportal import mcp as mcp_module
 from mcportal.quota.ledger import UsageLedger, key_fp
+from mcportal.replay import Cassette
+from mcportal.runtime.keys import prepare_service_key
 
 #: 합성 인증키(디코딩 표기)와 그 인코딩 표기. 실키가 아니다.
 SYNTHETIC_KEY = "ab12+CD/34=="
@@ -1409,3 +1417,431 @@ def test_sample_reports_total_failure_as_error(
     assert SYNTHETIC_KEY not in out + err
     # 실패했으므로 산출물을 갱신하지 않는다.
     assert not (directory / "openapi.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# 6. serve - stdio MCP 서버(W5 설계 §3)
+# ---------------------------------------------------------------------------
+#: 합성 번들의 기준 URL(카세트 인터랙션이 가리킬 주소).
+SYNTH_BASE = "https://apis.example.invalid/9900000/synth"
+
+#: 실번들 검증 1건에 쓰는 커밋된 프리셋 ID 와 그 오퍼레이션 수(= 노출 도구 수).
+REAL_PRESET_ID = "15000115"
+REAL_PRESET_TOOL_COUNT = 8
+
+
+class _StubServer:
+    """``run()`` 을 삼키는 서버 대역.
+
+    진짜 ``server.run()`` 은 stdio 를 물고 무기한 블로킹하므로 테스트에 들일 수
+    없다. 검증 가능한 지점은 "run 직전"까지이며, 이 대역이 그 경계를 만든다.
+    """
+
+    def __init__(self) -> None:
+        self.run_calls: list[tuple[Any, Any]] = []
+
+    def run(self, *args: Any, **kwargs: Any) -> None:
+        self.run_calls.append((args, kwargs))
+
+
+def _patch_build_server(
+    monkeypatch: pytest.MonkeyPatch, *, wrap: bool = False
+) -> dict[str, Any]:
+    """``mcportal.mcp.build_server`` 를 가로채 인자를 기록한다.
+
+    Args:
+        monkeypatch: pytest 픽스처.
+        wrap: True 면 **진짜** ``build_server`` 도 함께 호출해 만들어진 서버를
+            ``box["server"]`` 에 남긴다(도구 노출 검증용). CLI 에는 어느 경우에도
+            대역을 돌려주므로 stdio 가 블로킹되지 않는다.
+
+    Returns:
+        ``spec_path`` · ``kwargs`` · ``stub`` (· ``server``)를 담을 딕셔너리.
+        CLI 가 ``build_server`` 에 닿기 전에 접혔다면 ``kwargs`` 키가 없다.
+    """
+    box: dict[str, Any] = {}
+    real = mcp_module.build_server
+
+    def fake(spec_path: Any, **kwargs: Any) -> Any:
+        box["spec_path"] = spec_path
+        box["kwargs"] = kwargs
+        if wrap:
+            box["server"] = real(spec_path, **kwargs)
+        stub = _StubServer()
+        box["stub"] = stub
+        return stub
+
+    monkeypatch.setattr(mcp_module, "build_server", fake)
+    return box
+
+
+def write_synthetic_cassette(directory: Path) -> Path:
+    """합성 번들 옆에 ``cassettes/<ID>.json`` 을 만든다(시크릿 0건)."""
+    path = directory / "cassettes" / f"{directory.name}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cassette = Cassette()
+    cassette.add(
+        method="GET",
+        url=f"{SYNTH_BASE}/getSynthList?targetYm=202601",
+        params={"targetYm": "202601"},
+        status=200,
+        content_type="application/json",
+        body_text=json.dumps({"totalCount": 1}, ensure_ascii=False),
+        secrets=[],
+    )
+    cassette.save(path)
+    return path
+
+
+def prepare_serve_bundle(
+    capsys: pytest.CaptureFixture[str], root: Path, *, cassette: bool = True
+) -> Path:
+    """서빙 가능한 합성 번들을 만든다(컴파일 산출물 + 선택적 카세트)."""
+    directory = write_synthetic_bundle(root)
+    code, _, _ = run_cli(capsys, "compile", "--presets-root", str(root))
+    assert code == cli.EXIT_OK
+    assert (directory / "openapi.json").is_file()
+    if cassette:
+        write_synthetic_cassette(directory)
+    return directory
+
+
+def test_serve_appears_in_help(capsys: pytest.CaptureFixture[str]) -> None:
+    """최상위 사용법에 다섯 번째 서브커맨드가 실린다."""
+    code, out, _ = run_cli(capsys, "--help")
+    assert code == cli.EXIT_OK
+    assert "serve" in out
+
+
+def test_serve_requires_a_preset_id(capsys: pytest.CaptureFixture[str]) -> None:
+    """대상 프리셋을 생략할 수 없다(사용법 오류 2)."""
+    code, out, err = run_cli(capsys, "serve")
+    assert code == cli.EXIT_USAGE
+    assert out == ""
+    assert "PRESET_ID" in err
+
+
+def test_serve_replay_and_key_env_are_mutually_exclusive(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """무키 replay 와 라이브를 동시에 요구하면 사용법 오류(2)다."""
+    code, _, err = run_cli(
+        capsys, "serve", SYNTH_PRESET_ID, "--replay", "--key-env", "SOME_VAR"
+    )
+    assert code == cli.EXIT_USAGE
+    assert err != ""
+
+
+def test_serve_rejects_raw_key_in_key_env(capsys: pytest.CaptureFixture[str]) -> None:
+    """``--key-env`` 에 키 원문을 넘기면 막고, 그 값을 되울리지 않는다."""
+    code, out, err = run_cli(
+        capsys, "serve", SYNTH_PRESET_ID, "--key-env", SYNTHETIC_KEY_ENCODED
+    )
+    assert code == cli.EXIT_USAGE
+    assert SYNTHETIC_KEY_ENCODED not in out + err
+    assert SYNTHETIC_KEY not in out + err
+
+
+@requires_curation
+def test_serve_defaults_to_replay_and_starts_the_server(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """모드를 주지 않으면 무키 replay 로 번들을 세우고 ``run()`` 까지 간다."""
+    directory = prepare_serve_bundle(capsys, tmp_path)
+    box = _patch_build_server(monkeypatch)
+
+    code, out, err = run_cli(
+        capsys, "serve", SYNTH_PRESET_ID, "--presets-root", str(tmp_path)
+    )
+    assert code == cli.EXIT_OK
+    # stdio 전송이 stdout 으로 JSON-RPC 프레임을 주고받는다. 배너 한 글자라도
+    # 섞이면 클라이언트 파서가 깨지므로 stdout 은 완전히 비어 있어야 한다.
+    assert out == ""
+    assert "모드: replay" in err
+
+    assert box["kwargs"]["mode"] == "replay"
+    assert box["kwargs"]["service_key"] is None
+    assert box["kwargs"]["name"] is None
+    assert Path(box["spec_path"]) == directory / "openapi.json"
+    assert (
+        Path(box["kwargs"]["cassette_path"])
+        == directory / "cassettes" / f"{SYNTH_PRESET_ID}.json"
+    )
+    assert len(box["stub"].run_calls) == 1
+
+
+@requires_curation
+def test_serve_explicit_replay_flag_matches_the_default(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``--replay`` 를 명시해도 기본값과 같은 배선이다."""
+    prepare_serve_bundle(capsys, tmp_path)
+    box = _patch_build_server(monkeypatch)
+
+    code, out, _ = run_cli(
+        capsys, "serve", SYNTH_PRESET_ID, "--presets-root", str(tmp_path), "--replay"
+    )
+    assert code == cli.EXIT_OK
+    assert out == ""
+    assert box["kwargs"]["mode"] == "replay"
+    assert box["kwargs"]["service_key"] is None
+
+
+@requires_curation
+def test_serve_name_option_reaches_the_builder(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``--name`` 은 서버 이름으로 그대로 전달되고 배너에도 실린다."""
+    prepare_serve_bundle(capsys, tmp_path)
+    box = _patch_build_server(monkeypatch)
+
+    code, _, err = run_cli(
+        capsys,
+        "serve",
+        SYNTH_PRESET_ID,
+        "--presets-root",
+        str(tmp_path),
+        "--name",
+        "합성 시험 서버",
+    )
+    assert code == cli.EXIT_OK
+    assert box["kwargs"]["name"] == "합성 시험 서버"
+    assert "합성 시험 서버" in err
+
+
+@requires_curation
+def test_serve_missing_cassette_is_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """카세트 없이 replay 를 요구하면 어느 파일이 없는지 알리고 1로 끝난다."""
+    directory = prepare_serve_bundle(capsys, tmp_path, cassette=False)
+    box = _patch_build_server(monkeypatch)
+
+    code, out, err = run_cli(
+        capsys, "serve", SYNTH_PRESET_ID, "--presets-root", str(tmp_path)
+    )
+    assert code == cli.EXIT_ERROR
+    assert out == ""
+    expected = directory / "cassettes" / f"{SYNTH_PRESET_ID}.json"
+    assert str(expected) in err
+    # 복구 경로 두 갈래를 모두 알린다(녹화 / 라이브 전환).
+    assert f"{cli.PROGRAM} sample" in err
+    assert "--key-env" in err
+    # 서버를 세우기 전에 접었다(빌더에 닿지 않았다).
+    assert "kwargs" not in box
+
+
+@requires_curation
+def test_serve_uncompiled_preset_is_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``openapi.json`` 이 없으면 compile 로 안내하고 1로 끝난다."""
+    directory = write_synthetic_bundle(tmp_path)
+    box = _patch_build_server(monkeypatch)
+
+    code, out, err = run_cli(
+        capsys, "serve", SYNTH_PRESET_ID, "--presets-root", str(tmp_path)
+    )
+    assert code == cli.EXIT_ERROR
+    assert out == ""
+    assert str(directory / "openapi.json") in err
+    assert f"{cli.PROGRAM} compile" in err
+    assert "kwargs" not in box
+
+
+@requires_curation
+def test_serve_unknown_preset_id_is_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """없는 프리셋 ID 는 서버를 세우기 전에 접는다."""
+    prepare_serve_bundle(capsys, tmp_path)
+    box = _patch_build_server(monkeypatch)
+
+    code, out, err = run_cli(
+        capsys, "serve", "99999999", "--presets-root", str(tmp_path)
+    )
+    assert code == cli.EXIT_ERROR
+    assert out == ""
+    assert "99999999" in err
+    assert "kwargs" not in box
+
+
+@requires_curation
+def test_serve_without_fastmcp_reuses_the_module_hint(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """fastmcp 미설치 안내는 :mod:`mcportal.mcp` 의 정본 문면을 그대로 쓴다.
+
+    같은 사실(설치 명령·요구 버전 범위)을 CLI 가 따로 적으면 두 곳이 갈라진다.
+    """
+    write_synthetic_bundle(tmp_path)
+    monkeypatch.setitem(sys.modules, "fastmcp", None)
+    box = _patch_build_server(monkeypatch)
+
+    code, out, err = run_cli(
+        capsys, "serve", SYNTH_PRESET_ID, "--presets-root", str(tmp_path)
+    )
+    assert code == cli.EXIT_ERROR
+    assert out == ""
+    assert mcp_module.FASTMCP_IMPORT_HINT in err
+    assert mcp_module.FASTMCP_REQUIREMENT in err
+    assert "kwargs" not in box
+
+
+@requires_curation
+def test_serve_live_reads_the_key_from_the_environment_only(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``--key-env`` 는 라이브 배선을 만들되 키도 변수 이름도 출력하지 않는다."""
+    prepare_serve_bundle(capsys, tmp_path)
+    monkeypatch.setenv("SYNTH_SERVE_KEY", SYNTHETIC_KEY)
+    box = _patch_build_server(monkeypatch)
+
+    code, out, err = run_cli(
+        capsys,
+        "serve",
+        SYNTH_PRESET_ID,
+        "--presets-root",
+        str(tmp_path),
+        "--key-env",
+        "SYNTH_SERVE_KEY",
+    )
+    assert code == cli.EXIT_OK
+    assert box["kwargs"]["mode"] == "live"
+    assert box["kwargs"]["cassette_path"] is None
+    # 트랜스포트에는 정규화(디코딩)된 키가 간다 - 지문·이중 인코딩 규약과 같다.
+    assert box["kwargs"]["service_key"] == prepare_service_key(SYNTHETIC_KEY)
+    assert out == ""
+    assert "모드: live" in err
+    for forbidden in (SYNTHETIC_KEY, SYNTHETIC_KEY_ENCODED, "ab12", "SYNTH_SERVE_KEY"):
+        assert forbidden not in out + err
+
+
+@requires_curation
+def test_serve_live_missing_env_value_is_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """환경변수가 비어 있으면 1로 끝나고 변수 이름도 되울리지 않는다."""
+    prepare_serve_bundle(capsys, tmp_path)
+    box = _patch_build_server(monkeypatch)
+
+    code, out, err = run_cli(
+        capsys,
+        "serve",
+        SYNTH_PRESET_ID,
+        "--presets-root",
+        str(tmp_path),
+        "--key-env",
+        "NO_SUCH_SERVE_VAR",
+    )
+    assert code == cli.EXIT_ERROR
+    assert out == ""
+    assert cli.KEY_ENV_MISSING in err
+    assert "NO_SUCH_SERVE_VAR" not in err
+    assert "kwargs" not in box
+
+
+@requires_curation
+def test_serve_build_failure_never_echoes_the_key(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """하위 계층 예외에 인증키가 섞여 있어도 출력에는 남지 않는다.
+
+    배선 실패 메시지에 요청 URL 이 들어오면 질의문자열의 ``serviceKey`` 가 그대로
+    따라 나온다. 원문 표기와 퍼센트 인코딩 표기를 **둘 다** 가리는지 본다.
+    """
+    prepare_serve_bundle(capsys, tmp_path)
+    monkeypatch.setenv("SYNTH_SERVE_KEY", SYNTHETIC_KEY)
+
+    def _boom(spec_path: Any, **kwargs: Any) -> Any:
+        raise ValueError(
+            "합성 배선 실패: "
+            f"{SYNTH_BASE}/getSynthList?serviceKey={SYNTHETIC_KEY_ENCODED} "
+            f"(원문 {SYNTHETIC_KEY})"
+        )
+
+    monkeypatch.setattr(mcp_module, "build_server", _boom)
+
+    code, out, err = run_cli(
+        capsys,
+        "serve",
+        SYNTH_PRESET_ID,
+        "--presets-root",
+        str(tmp_path),
+        "--key-env",
+        "SYNTH_SERVE_KEY",
+    )
+    assert code == cli.EXIT_ERROR
+    assert out == ""
+    assert "ValueError" in err
+    assert cli.REDACTED in err
+    for forbidden in (SYNTHETIC_KEY, SYNTHETIC_KEY_ENCODED, "ab12"):
+        assert forbidden not in out + err
+
+
+@requires_curation
+def test_serve_interrupt_during_run_returns_130(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ctrl+C 는 서빙 중에도 130 으로 접힌다(stdio 서버의 정상 종료 경로).
+
+    ``serve`` 는 사람이 Ctrl+C 로 끝내는 것이 기본 종료 방식이므로, 그 경로가
+    예외 누출이나 종료 코드 1 로 새면 안 된다.
+    """
+    prepare_serve_bundle(capsys, tmp_path)
+
+    class _InterruptingServer:
+        def run(self, *args: Any, **kwargs: Any) -> None:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        mcp_module, "build_server", lambda spec_path, **kwargs: _InterruptingServer()
+    )
+
+    code, out, err = run_cli(
+        capsys, "serve", SYNTH_PRESET_ID, "--presets-root", str(tmp_path)
+    )
+    assert code == cli.EXIT_INTERRUPTED
+    assert out == ""
+    assert "사용자 중단" in err
+
+
+def test_serve_notes_are_cp949_encodable() -> None:
+    """serve 가 쓰는 상시 고지도 Windows 기본 콘솔에서 살아남는다."""
+    for text in (cli.SERVE_STDIO_NOTE, cli.SERVE_LIVE_NOTE, cli.REDACTED):
+        assert_cp949_safe(text, where="serve 고지")
+
+
+@requires_curation
+def test_serve_real_preset_exposes_eight_tools(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """커밋된 실번들 15000115 를 무키 replay 로 세우면 도구 8종이 노출된다.
+
+    이 파일에서 실번들을 쓰는 유일한 테스트다(모듈 docstring §4). "무키 replay 로
+    진짜 MCP 서버가 선다"는 주장은 합성 번들로 증명되지 않기 때문이다. 그래도
+    네트워크·인증키는 0건이다 - 카세트는 커밋본을 읽고, 여기서는 도구 목록만
+    조회한다. 도구 정의는 fastmcp 가 만든다(MCPortal 자체 코드젠 없음).
+    """
+    fastmcp = pytest.importorskip("fastmcp", reason="[mcp] extra 미설치")
+    presets_root = Path(__file__).resolve().parents[1] / "presets"
+    cassette = presets_root / REAL_PRESET_ID / "cassettes" / f"{REAL_PRESET_ID}.json"
+    if not cassette.is_file():
+        pytest.skip("커밋된 실번들 카세트가 없는 트리에서는 건너뛴다")
+
+    box = _patch_build_server(monkeypatch, wrap=True)
+    code, out, err = run_cli(
+        capsys, "serve", REAL_PRESET_ID, "--presets-root", str(presets_root)
+    )
+    assert code == cli.EXIT_OK
+    assert out == ""
+    assert str(cassette) in err
+    assert len(box["stub"].run_calls) == 1
+
+    async def _list_tools() -> list[str]:
+        async with fastmcp.Client(box["server"]) as session:
+            return [tool.name for tool in await session.list_tools()]
+
+    names = asyncio.run(_list_tools())
+    assert len(names) == REAL_PRESET_TOOL_COUNT
+    assert "lawSearchList" in names
