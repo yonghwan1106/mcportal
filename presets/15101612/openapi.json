@@ -111,7 +111,7 @@
       "source_fingerprint": "sha256:76db39aeabda9714a68783e4cf15a60e46e60bbf9baf58f4b52f7d486d350ad9",
       "source_kind": "gw_swagger",
       "source_url": "https://www.data.go.kr/data/15101612/openapi.do",
-      "tool_version": "0.2.1"
+      "tool_version": "0.2.2"
     }
   },
   "openapi": "3.1.0",

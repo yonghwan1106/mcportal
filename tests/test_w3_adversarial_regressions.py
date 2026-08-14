@@ -1027,12 +1027,40 @@ def test_readme_states_what_the_wheel_does_and_does_not_carry() -> None:
     나가면 배포하지 않기로 한 것을 배포하게 된다. 그래서 문서가 **동봉하지 않는
     것**도 함께 적도록 요구하고, 그 주장을 ``pyproject.toml`` 의 실제 force-include
     목록과 대조한다(문서만 고치고 설정이 따라오지 않는 경우를 잡는다).
+
+    v0.2.2 에서 금지목록이 **한 칸 줄었다** — ``sampled_schemas`` 만 뺀다.
+    W6 클린 재현(2026-08-15)에서 pip 설치본의 ``mcportal compile --check`` 가
+    ``4건 중 3건 드리프트 / exit 3`` 으로 죽는 것이 실측됐다. ``--check`` 는
+    파일을 비교하는 게 아니라 source + curation + sampled 3층에서
+    ``openapi.json`` 을 **재합성해** 대조하기 때문이다. sampled 층이 wheel 에
+    없으면 설치본은 자기가 실어 나른 ``openapi.json`` 을 스스로 재현하지 못한다.
+    즉 빠져 있던 것은 증거가 아니라 산출물을 만든 **빌드 입력**이었다. 노출
+    관점에서도 이 파일은 응답에서 추론한 **필드명·타입 구조만** 담고 실응답 값이
+    **0건**이며, 그 구조는 이미 ``openapi.json`` 으로 wheel 에 나가고 있어
+    **추가로 새어 나가는 정보가 없다**. 그래서 이 항목만 금지에서 뺀다.
+
+    **경계는 그대로다.** 여전히 금지인 것은 **실응답 본문(``samples/``)과
+    카세트(``cassettes/``)** 다 — data.go.kr 원문이라 재배포 조건·스크러빙 검토가
+    선행되어야 한다. 이 경계가 이 테스트의 존재 이유이므로 검사 강도는 낮추지 않고
+    **반대 방향으로 축을 늘린다**: sampled 층 3건이 force-include 에 실제로 들어
+    있는지, 그리고 샘플링하지 않은 ``15081808`` 에는 파일도 항목도 **없는지**까지
+    못박는다(개인정보 축이라 실호출하지 않은 번들이다 — 이 사실이 조용히 뒤집히면
+    그게 사고다). 얻은 것은 pip 설치본 ``compile --check`` 의
+    ``4건 중 4건 일치 / exit 0`` 복구다.
+
+    ⚠️ 부분문자열 함정이 아니다: ``"samples"`` 는 ``"sampled_schemas"`` 의
+    부분문자열이 **아니다**(``sampled`` 는 ``d`` 로 끝난다). 그래서 ``samples``
+    금지를 그대로 남겨 둬도 오탐이 나지 않는다 — 아래 마지막 두 줄이 그 성질
+    자체를 고정한다.
     """
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert "the published wheel carries the four preset bundles" in readme
     assert "MCPORTAL_PRESETS" in readme
-    # 동봉하지 않는 것(샘플링 증거)을 같은 자리에서 밝힌다.
+    # 동봉하지 않는 것(실응답 본문·카세트)을 같은 자리에서 밝힌다.
     assert "stay in the" in readme
+    # 0.2.2 에서 늘어난 동봉 범위(sampled 층)도 같은 자리에 적는다.
+    assert "Since 0.2.2" in readme
+    assert "sampled_schemas.json" in readme
     # "개인정보 0건"은 하위 문서(§2-1)와 같은 범위로 좁혀 서술한다.
     assert "The scope of that statement is the bundle artifacts" in readme
     assert "opendata_help@nia.or.kr" in readme
@@ -1040,11 +1068,15 @@ def test_readme_states_what_the_wheel_does_and_does_not_carry() -> None:
     korean = (REPO_ROOT / "README.ko.md").read_text(encoding="utf-8")
     assert "wheel 에 동봉된다" in korean
     assert "MCPORTAL_PRESETS" in korean
+    assert "0.2.2 부터는" in korean
+    assert "sampled_schemas.json" in korean
+    # 한국어판도 "리포에만 남는 것"을 같은 자리에서 밝혀야 한다.
+    assert "리포에만" in korean
     assert "번들 산출물" in korean
     assert "opendata_help@nia.or.kr" in korean
 
-    # 문서의 주장을 빌드 설정으로 확인한다: 번들 4종의 파일은 동봉 목록에 있고,
-    # 샘플링 증거는 한 줄도 없다.
+    # 문서의 주장을 빌드 설정으로 확인한다: 번들 4종의 파일과 sampled 층은 동봉
+    # 목록에 있고, 실응답 본문·카세트는 한 줄도 없다.
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     force_include = pyproject.split(
         "[tool.hatch.build.targets.wheel.force-include]"
@@ -1054,10 +1086,35 @@ def test_readme_states_what_the_wheel_does_and_does_not_carry() -> None:
             assert f'"presets/{preset_id}/{name}"' in force_include, (
                 f"{preset_id}/{name} 가 wheel 동봉 목록에 없다"
             )
-    for forbidden in ("cassettes", "samples", "sampled_schemas", "_raw", "_transcribed"):
+    # 반대 방향의 단언. sampled 층이 조용히 빠지면 설치본의 compile --check 가
+    # 다시 exit 3 으로 돌아간다(2026-08-15 실측). 파일 존재와 동봉 항목을 함께
+    # 못박아 "설정만 지우고 파일은 남는" 경우도 잡는다.
+    for preset_id in ("15000115", "15101612", "15102108"):
+        assert f'"presets/{preset_id}/sampled_schemas.json"' in force_include, (
+            f"{preset_id}/sampled_schemas.json 가 wheel 동봉 목록에서 빠졌다 — "
+            "설치본이 openapi.json 을 재합성하지 못한다"
+        )
+        assert (PRESETS_ROOT / preset_id / "sampled_schemas.json").is_file(), (
+            f"{preset_id}/sampled_schemas.json 파일이 리포에 없다"
+        )
+    # 15081808 은 개인정보 축이라 실호출하지 않았다 — sampled 층이 애초에 없다.
+    # 파일 단위 매핑이라 없는 경로를 적으면 빌드가 FileNotFoundError 로 죽으므로
+    # 동봉 목록에도 없어야 한다. 둘 다 못박는다(한쪽만 뒤집혀도 사고다).
+    assert '"presets/15081808/sampled_schemas.json"' not in force_include, (
+        "15081808 에는 sampled_schemas.json 이 없다 — 동봉 목록에 적으면 빌드가 죽는다"
+    )
+    assert not (PRESETS_ROOT / "15081808" / "sampled_schemas.json").exists(), (
+        "15081808 에 sampled_schemas.json 이 생겼다 — 샘플링 제외 전제가 뒤집혔다"
+    )
+
+    for forbidden in ("cassettes", "samples", "_raw", "_transcribed"):
         assert forbidden not in force_include, (
             f"wheel 동봉 목록에 {forbidden} 가 들어갔다 — 배포 대상이 아니다"
         )
+    # 위 금지 목록이 sampled 층을 오탐하지 않는다는 성질 자체를 고정한다:
+    # "samples" 는 "sampled_schemas" 의 부분문자열이 아니다.
+    assert "sampled_schemas" in force_include
+    assert "samples" not in "sampled_schemas"
 
 
 def test_presets_readme_headline_matches_its_own_numbers() -> None:

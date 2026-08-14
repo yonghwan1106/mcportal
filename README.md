@@ -28,7 +28,7 @@ canonical document and the Korean file is a translation of it.
 | --- | --- |
 | Replaying record/replay cassettes | Live API calls |
 | The full test suite (`pytest`), including the record-mode tests, which run on synthetic transports | Live response sampling |
-| Standing up an MCP server from a committed spec (spec-to-MCP) | Ad-hoc conversion of an API that has no cassette yet |
+| Standing up an MCP server from a committed spec plus its cassette (`mcportal serve <id> --replay`) — from a repo checkout, or from a PyPI install pointed at one (note 1) | Ad-hoc conversion of an API that has no cassette yet |
 | Regenerating the compile demo (`examples/compile_demo.py`) | Recording new cassettes |
 | Regenerating and listing the preset bundles (`mcportal compile` / `mcportal presets`) — bundled in the wheel since 0.2.0 (note 1) | Sampling a response schema that is still unresolved (`mcportal sample`) |
 | Reading quota status (`mcportal quota status`) | The key-dependent benchmark items K1–K3 |
@@ -38,21 +38,45 @@ Every demo, development and CI path in MCPortal runs without a key. The
 record/replay layer replays cassettes that were recorded earlier, so the same
 response flow can be reproduced and the whole test suite can go green with no
 `serviceKey` present. **Spec-to-MCP conversion has already happened at build
-time** — the compiled artifacts are committed under `specs/` — so even standing
-up an MCP server and answering tool calls needs no key. What does need a key is
-narrow: live traffic to data.go.kr, and sampling or converting an API that has
-no cassette yet.
+time** — the compiled artifacts are committed under `specs/` — so **clone the
+repository and even standing up an MCP server and answering tool calls needs no
+key**: `mcportal serve 15000115 --replay` serves eight tools over stdio with no
+`serviceKey` anywhere in the environment.
 
-> **Note 1 — the preset bundles ship inside the wheel as of 0.2.0.**
+That sentence says *clone* on purpose. Replay needs a cassette, and cassettes
+are recorded upstream responses that stay in the repository instead of going out
+in the wheel (note 1), so a bare `pip install mcportal` has nothing to replay
+until it is pointed at a checkout with `--presets-root <path>` or
+`MCPORTAL_PRESETS=<path>`. Cassettes exist for three of the four bundles —
+`15081808` has none in the repository either, because it was deliberately left
+out of sampling (see *Presets* below), so that one bundle is live-only.
+
+What does need a key is narrow: live traffic to data.go.kr, and sampling or
+converting an API that has no cassette yet.
+
+> **Note 1 — what the wheel carries, and what it does not.**
 > Since 0.2.0, **the published wheel carries the four preset bundles** (16 bundle
 > files plus the two `presets/` documents, measured on the built artifact), so a
-> plain `pip install mcportal` can run `mcportal presets` and `mcportal compile`
-> with no checkout. What the wheel deliberately leaves out is the sampling
-> evidence — `cassettes/`, `samples/` and `sampled_schemas.json` stay in the
-> repository only. To use a different bundle set, point MCPortal at a checkout
-> with `--presets-root <path>` or the environment variable
-> `MCPORTAL_PRESETS=<path>`. When `mcportal presets` finds no bundle it prints
-> the paths it searched.
+> plain `pip install mcportal` can run `mcportal presets` with no checkout.
+> **Since 0.2.2** the wheel also carries the three `sampled_schemas.json` files
+> — `15000115`, `15101612` and `15102108`; `15081808` has none, because it was
+> deliberately left out of sampling. They ship because `mcportal compile
+> --check` needs them: `--check` does not diff files, it re-synthesizes
+> `openapi.json` from its source + curation + sampled layers, so without the
+> sampled layer an installed copy cannot reproduce the very `openapi.json` it
+> shipped. On 0.2.1 as published, `compile --check` from a plain install reports
+> 3 of 4 drifted and exits 3 (measured 2026-08-15); on that version pass
+> `--presets-root <checkout>/presets`. 0.2.2 restores it to 4 of 4 matched,
+> exit 0, from the install alone.
+> Those three files carry only the **field names and types inferred from the
+> responses** — zero response values — and that structure already ships inside
+> `openapi.json`, so nothing is exposed that the wheel did not already carry.
+> What the wheel still leaves out is the recorded upstream traffic itself:
+> **`cassettes/` and `samples/` stay in the repository only**, which is why
+> `mcportal serve --replay` is a checkout path. To use a different bundle set —
+> or to give a PyPI install the cassettes — point MCPortal at a checkout with
+> `--presets-root <path>` or the environment variable `MCPORTAL_PRESETS=<path>`.
+> When `mcportal presets` finds no bundle it prints the paths it searched.
 
 ### Key-free reproduction walkthrough
 
@@ -63,7 +87,14 @@ python examples/compile_demo.py
 #    Re-running produces byte-identical output; the determinism check is
 #    built into the script.
 
-# 2) Stand up an MCP server from a committed spec plus a cassette (no key).
+# 2) Stand up an MCP server over stdio from a committed bundle (no key).
+#    Needs the [mcp] extra. --replay reads presets/<id>/cassettes/<id>.json,
+#    which exists for 15000115, 15101612 and 15102108; 15081808 has none.
+mcportal serve 15000115 --replay
+#    -> 8 tools over stdio, zero credentials. On a PyPI install add
+#    --presets-root <checkout>/presets (note 1).
+#
+#    The same thing without the CLI, against any spec plus any cassette:
 python -c "from mcportal.mcp import build_server; \
 build_server('specs/demo/openapi.json', mode='replay', \
 cassette_path='<cassette path>')"
@@ -74,8 +105,10 @@ cassette_path='<cassette path>')"
 #    in tmp_path. presets/<id>/openapi.json fits the same slot.
 
 # 3) Regenerate the preset bundles from real published specs (no key).
-#    Needs a repo checkout (note 1); on a PyPI install pass --presets-root
-#    <path> or set MCPORTAL_PRESETS=<path>.
+#    Works from a checkout, and — since 0.2.2 started carrying the sampled
+#    layer — from a plain pip install too (note 1). On 0.2.1 as published from
+#    PyPI, or to point at a different bundle set, pass --presets-root <path>
+#    or set MCPORTAL_PRESETS=<path>.
 mcportal presets            # list
 mcportal compile --check    # byte-compare committed vs regenerated (exit 3 on drift)
 
@@ -131,6 +164,8 @@ mcportal compile [PRESET_ID ...] [--presets-root PATH] [--check] [--json]
 mcportal presets [--presets-root PATH] [--json] [--verbose]
 mcportal sample PRESET_ID ... --key-env VAR [--budget N] [--count N]
                 [--ledger PATH] [--presets-root PATH] [--json]
+mcportal serve PRESET_ID [--replay | --key-env VAR] [--presets-root PATH]
+                         [--name TEXT]
 ```
 
 | Subcommand | What it does |
@@ -139,6 +174,7 @@ mcportal sample PRESET_ID ... --key-env VAR [--budget N] [--count N]
 | `compile` | Regenerates preset bundles. Files whose content is unchanged are not rewritten. `--check` writes nothing and only byte-compares |
 | `presets` | Lists the bundles as a table; `--verbose` expands the curation notes |
 | `sample` | Live sampling that fills in response schemas still marked unresolved, writing the inferred schema, the response bodies and a replayable cassette. It is the one subcommand that needs a key, and the key is taken **only** from the environment variable named by `--key-env VAR`, never as a literal argument |
+| `serve` | Stands one bundle up as an MCP server over stdio. The default `--replay` needs no key; `--key-env VAR` goes live through the same quota guard. Requires the `[mcp]` extra. **Documented against a repo checkout**: `--replay` reads `presets/<id>/cassettes/<id>.json`, which the wheel does not carry (note 1), so from a PyPI install pass `--presets-root <checkout>/presets` or set `MCPORTAL_PRESETS=<checkout>/presets`. Three of the four bundles have a cassette — `15081808` has none in the repository either, so it serves live only. **stdout is protocol-only**; every human-readable line, banner included, goes to stderr |
 
 Exit codes: **0** success (including "no ledger", "no presets" and "nothing
 changed" — an empty state is not a failure) / **1** execution failure / **2**
@@ -199,8 +235,10 @@ presets/<id>/
 └─ cassettes/            <- request/response pairs for offline replay
 ```
 
-The four files at the top are what ships in the wheel. The sampling evidence
-stays in the repository.
+The four files at the top ship in the wheel, and since 0.2.2 so does
+`sampled_schemas.json` where it exists — three of the four bundles — because
+`compile --check` cannot re-synthesize `openapi.json` without it (note 1). The
+recorded traffic, `samples/` and `cassettes/`, is repository only.
 
 - **The lower layer carries zero lines of domain knowledge.**
   `mcportal.compiler.curation` is a general engine that reads, validates and
@@ -313,6 +351,14 @@ the raw samples ship inside the result file so anyone can recompute.
 (+901,050 ns; guarded median 1.04 ms against a bare median 0.14 ms; N = 200
 after 20 warmup rounds; measured 2026-08-09 on Windows 10, CPython 3.11.9,
 httpx 0.28.1, SQLite 3.45.1).
+
+**That headline is environment-dependent, and the environment is part of the
+claim.** Re-running the same harness on a freshly provisioned machine on
+2026-08-15 produced a guarded median of 738.9 us against a bare median of
+91.0 us — an increment of +0.65 ms. Neither figure is wrong: the absolute cost
+tracks the host's SQLite write latency, so the number a third party reproduces
+will be their own. Quote the headline with its measurement environment attached,
+or re-measure.
 
 Read that as an **absolute increment**, and read it with two facts attached.
 The number **includes the SQLite ledger write** (WAL journal mode), because that

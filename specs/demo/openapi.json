@@ -110,7 +110,7 @@
       "source_fingerprint": "sha256:70fed49294bd70a0a8a63c24622a035f6e389011dfe57cc81880e1db625f58a5",
       "source_kind": "gw_swagger",
       "source_url": "https://example.invalid/demo/openapi.json",
-      "tool_version": "0.2.1"
+      "tool_version": "0.2.2"
     }
   },
   "openapi": "3.1.0",

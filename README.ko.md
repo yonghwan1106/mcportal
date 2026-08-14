@@ -46,25 +46,51 @@ fastmcp 와 함께 **anyio** 를 선언한다 — sync→async 브리지가 `any
 | --- | --- |
 | record/replay 카세트(cassette) 재생 데모 | 라이브 API 호출 (live API calls) |
 | 전체 테스트 스위트 실행 (`pytest`) | 라이브 응답 샘플링 (live sampling) |
-| 커밋된 스펙에서 MCP 서버 세우기 (spec-to-MCP) | 아직 카세트가 없는 API의 즉석 변환 |
+| 커밋된 스펙+카세트로 MCP 서버 세우기 (`mcportal serve <id> --replay`) — 리포 체크아웃 기준, PyPI 설치본은 체크아웃을 가리켜야 한다(주1) | 아직 카세트가 없는 API의 즉석 변환 |
 | 컴파일 데모 재생성 (`examples/compile_demo.py`) | 카세트 신규 녹화 (record) |
 | 프리셋 3종(4데이터셋) 재생성·조회 (`mcportal compile` / `presets`) — 0.2.0 부터 **wheel 동봉**(주1) | 미확정 응답 스키마 채우기 (`mcportal sample`) |
 | 쿼터 현황 조회 (`mcportal quota status`) | 벤치마크 실키 항목 K1~K3 |
 
-> **주1 — 0.2.0 부터 프리셋 4종이 wheel 에 동봉된다.** 번들 16파일과 `presets/`
-> 문서 2개가 wheel 에 들어간다(빌드 산출물 실측). 따라서 `pip install mcportal`
-> 만으로 `mcportal presets`·`mcportal compile` 이 돈다. **동봉하지 않는 것은
-> 샘플링 증거**다 — `cassettes/`·`samples/`·`sampled_schemas.json` 은 리포에만
-> 둔다. 다른 번들을 쓰려면 `--presets-root <경로>` 또는 환경변수
-> `MCPORTAL_PRESETS=<경로>` 로 위치를 알려 주면 된다. `mcportal presets` 는
-> 프리셋을 찾지 못하면 탐색한 경로를 그대로 출력한다.
+> **주1 — wheel 에 무엇이 실리고 무엇이 실리지 않는가.** 0.2.0 부터 프리셋
+> 4종이 wheel 에 동봉된다 — 번들 16파일과 `presets/` 문서 2개가 들어간다(빌드
+> 산출물 실측). 따라서 `pip install mcportal` 만으로 `mcportal presets` 가 돈다.
+> **0.2.2 부터는** `sampled_schemas.json` 3파일도 함께 싣는다 —
+> `15000115`·`15101612`·`15102108` 이며, `15081808` 은 개인정보 축이라 샘플링에서
+> 의도적으로 뺐으므로 이 파일이 아예 없다. 싣는 이유는 `mcportal compile
+> --check` 가 그 파일을 필요로 하기 때문이다 — `--check` 는 파일을
+> 비교하는 것이 아니라 source + curation + sampled 3층에서 `openapi.json` 을
+> **재합성해** 대조하므로, sampled 층이 빠지면 설치본이 자기가 실어 나른
+> `openapi.json` 을 스스로 재현하지 못한다. 공개된 0.2.1 에서는 빈 디렉터리에서
+> `compile --check` 가 `4건 중 3건 드리프트 / 종료 코드 3` 으로 죽는다(2026-08-15
+> 실측) — 그 버전에서는 `--presets-root <체크아웃>/presets` 를 주면 된다. 0.2.2
+> 에서는 설치본 단독으로 `4건 중 4건 일치 / 종료 코드 0` 이 된다.
+> 이 3파일이 담는 것은 응답에서 추론한 **필드명과 타입 구조뿐**이고 실응답 값은
+> 0건이며, 그 구조는 이미 `openapi.json` 으로 wheel 에 나가고 있어 새로 드러나는
+> 정보가 없다.
+> **여전히 동봉하지 않는 것은 상위 API 응답 원문 그 자체**다 —
+> **`cassettes/`·`samples/` 는 리포에만 둔다.** 그래서 `mcportal serve --replay`
+> 는 체크아웃 전제 경로다. 다른
+> 번들을 쓰려면 — 또는 PyPI 설치본에 카세트를 쥐여 주려면 — `--presets-root
+> <경로>` 또는 환경변수 `MCPORTAL_PRESETS=<경로>` 로 위치를 알려 주면 된다.
+> `mcportal presets` 는 프리셋을 찾지 못하면 탐색한 경로를 그대로 출력한다.
 
 MCPortal의 데모·개발·CI 경로는 전부 무키로 돈다. 미리 녹화해 둔 카세트를 재생하는
 record/replay 계층 덕분에, serviceKey가 없어도 실제 API와 동일한 응답 흐름을 재현하고
 전체 테스트를 초록불로 통과시킬 수 있다. **스펙→MCP 변환은 설치·빌드 시점에 끝나
-있으므로**(산출물이 `specs/` 에 커밋된다) MCP 서버를 세워 도구를 호출하는 데까지도
-실키가 필요 없다. 실키를 요구하는 것은 실제 data.go.kr로 나가는 라이브 호출과,
-아직 카세트가 없는 API를 즉석에서 샘플링·변환하는 경로뿐이다.
+있으므로**(산출물이 `specs/` 에 커밋된다) **리포를 클론하면 MCP 서버를 세워 도구를
+호출하는 데까지도 실키가 필요 없다** — `mcportal serve 15000115 --replay` 하나로
+도구 8종이 stdio 위에 뜨며, 환경 어디에도 serviceKey 가 없다.
+
+"클론하면"이라고 범위를 밝힌 것은 의도적이다. replay 에는 카세트가 필요한데,
+카세트는 상위 API 응답 원문이라 wheel 로 나가지 않고 리포에만 남는다(주1).
+그래서 `pip install mcportal` 만 한 환경에는 재생할 카세트가 없고,
+`--presets-root <경로>` 또는 `MCPORTAL_PRESETS=<경로>` 로 체크아웃을 가리켜야
+같은 결과가 나온다. 카세트가 있는 번들은 4종 중 3종이다 — `15081808` 은 개인정보
+축이라 샘플링에서 의도적으로 뺐으므로(아래 W3 절) **리포에도 카세트가 없고**,
+이 번들만은 라이브 전용이다.
+
+실키를 요구하는 것은 실제 data.go.kr로 나가는 라이브 호출과, 아직 카세트가 없는
+API를 즉석에서 샘플링·변환하는 경로뿐이다.
 
 ### 무키 재현 데모 흐름
 
@@ -74,7 +100,14 @@ python examples\compile_demo.py
 #    → specs\demo\openapi.json + specs\demo\samples\*.json
 #    재실행하면 바이트 동일한 산출물이 나온다(결정론 검증이 스크립트에 내장).
 
-# 2) 커밋된 스펙 + 카세트로 MCP 서버를 세운다(실키 불요).
+# 2) 커밋된 번들로 MCP 서버를 stdio 위에 세운다(실키 불요).
+#    [mcp] extra 가 필요하다. --replay 는 presets\<id>\cassettes\<id>.json 을
+#    재생하므로 15000115·15101612·15102108 에서 되고, 15081808 은 카세트가 없다.
+mcportal serve 15000115 --replay
+#    → 도구 8종이 stdio 위에 뜬다. PyPI 설치본이라면
+#    --presets-root <체크아웃>\presets 를 덧붙인다(주1).
+#
+#    같은 일을 CLI 없이, 임의의 스펙+카세트로 하려면:
 python -c "from mcportal.mcp import build_server; \
 build_server('specs/demo/openapi.json', mode='replay', \
 cassette_path='<카세트 경로>')"
@@ -86,10 +119,10 @@ cassette_path='<카세트 경로>')"
 #    presets\<id>\openapi.json 도 같은 자리에 넣을 수 있다(15000115 -> 도구 8개).
 
 # 3) 실제 공개 스펙으로 만든 프리셋을 재생성한다(네트워크 0건·인증키 0건).
-#    ⚠️ 이 두 명령은 **리포를 체크아웃한 상태**를 전제한다. 프리셋은 아직 wheel 에
-#    동봉되지 않으므로(주1) `pip install mcportal` 환경에서는 "프리셋을 찾지
-#    못했습니다"가 나온다. 그 경우 --presets-root <경로> 또는
-#    환경변수 MCPORTAL_PRESETS=<경로> 로 번들 위치를 알려 주면 된다.
+#    체크아웃에서 돌고, wheel 이 sampled 층을 싣기 시작한 0.2.2 부터는 `pip
+#    install mcportal` 환경에서도 그대로 돈다(주1). 공개된 0.2.1 을 쓰거나 다른 번들
+#    세트를 가리키려면 --presets-root <경로> 또는 환경변수
+#    MCPORTAL_PRESETS=<경로> 로 번들 위치를 알려 주면 된다.
 mcportal presets            # 목록
 mcportal compile --check    # 커밋본과 재생성본의 바이트 비교(드리프트가 있으면 종료 코드 3)
 
@@ -235,7 +268,10 @@ presets/<id>/
 └─ cassettes/      ← 요청·응답 쌍(오프라인 재현용)
 ```
 
-위 네 파일이 wheel 에 동봉되는 범위이고, 샘플링 증거는 리포에만 둔다.
+위 네 파일에 더해, 0.2.2 부터는 `sampled_schemas.json` 이 있는 번들(4종 중 3종)은
+그 파일까지가 wheel 동봉 범위다 — 그 파일이 없으면 설치본이 `compile --check` 로
+`openapi.json` 을 재합성하지 못한다(주1). 응답 원문인 `samples/` 와 `cassettes/`
+는 리포에만 둔다.
 
 - **아래층(엔진)에는 도메인 지식이 0줄이다.** `mcportal.compiler.curation` 은
   큐레이션 데이터를 읽고 검증하고 병합하는 일반 엔진이며, 특정 기관·데이터셋의
@@ -273,6 +309,8 @@ mcportal compile [PRESET_ID ...] [--presets-root PATH] [--check] [--json]
 mcportal presets [--presets-root PATH] [--json] [--verbose]
 mcportal sample PRESET_ID ... --key-env VAR [--budget N] [--count N]
                 [--ledger PATH] [--presets-root PATH] [--json]
+mcportal serve PRESET_ID [--replay | --key-env VAR] [--presets-root PATH]
+                         [--name TEXT]
 ```
 
 | 서브커맨드 | 하는 일 |
@@ -281,6 +319,7 @@ mcportal sample PRESET_ID ... --key-env VAR [--budget N] [--count N]
 | `compile` | 프리셋을 재생성한다. 내용이 같으면 파일을 다시 쓰지 않는다. `--check` 는 쓰지 않고 바이트 비교만 한다 |
 | `presets` | 번들 목록을 표로 보여 준다. `--verbose` 는 큐레이션 메모까지 펼친다 |
 | `sample` | 응답 스키마가 미확정인 오퍼레이션만 골라 실제로 호출하고, 추론한 스키마·응답 본문·재현용 카세트를 함께 남긴다. **키가 필요한 유일한 서브커맨드**이며 키는 `--key-env VAR` 가 가리키는 환경변수에서만 읽는다(원문을 인자로 받는 옵션은 없다) |
+| `serve` | 번들 1건을 MCP 서버로 세워 stdio 로 서빙한다. 기본값 `--replay` 는 실키가 필요 없고, `--key-env VAR` 를 주면 같은 쿼터가드를 지나 라이브로 붙는다. `[mcp]` extra 가 필요하다. **문서 기준은 리포 체크아웃이다** — `--replay` 는 `presets/<id>/cassettes/<id>.json` 을 읽는데 그 파일은 wheel 에 없으므로(주1), PyPI 설치본에서는 `--presets-root <체크아웃>/presets` 를 주거나 `MCPORTAL_PRESETS=<체크아웃>/presets` 를 설정한다. 카세트가 있는 번들은 4종 중 3종이며 `15081808` 은 리포에도 없어 라이브 전용이다. **stdout 은 프로토콜 전용**이고 배너를 포함한 사람용 출력은 전부 stderr 로 나간다 |
 
 종료 코드: **0** 정상(원장 없음·프리셋 없음·변경 없음을 포함한다 — 빈 상태는
 실패가 아니다) / **1** 실행 실패 / **2** 사용법 오류 / **3** `compile --check`

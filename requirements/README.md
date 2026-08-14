@@ -64,45 +64,72 @@ hash. Both variants were measured against this lockfile (pip 26.1.2):
 | `pip install .[dev] -c lock-py311.txt` | `ERROR: Can't verify hashes for these file:// requirements because they point to directories` |
 | `pip install -r lock-py311.txt` | works |
 
+The editable row was re-measured on 2026-08-15 against pip 24.0 and pip 26.2.1
+and produced the identical error on both, so it is not an artefact of one pip
+version. `CONTRIBUTING.md` gives the two-step form as the development install
+for exactly this reason.
+
 If a constraints-style install is genuinely wanted, regenerate a second
 lockfile without `--generate-hashes`; a hashed lockfile and `-c` are mutually
 exclusive by design.
 
-## Known limitation: this lockfile is resolved on Windows
+## Platform markers: the defect this file used to have (fixed 2026-08-09)
 
-pip-compile resolves for the interpreter and platform it runs on, and it
-**drops environment markers** for dependencies that are conditional upstream.
-Concretely, `mcp` declares:
+This defect is fixed and the section is written in the past tense on purpose:
+the current lockfile is a `uv pip compile --universal` output and carries
+markers for every platform. It is kept because the failure is one regeneration
+away - regenerate this file without `--universal` and all of it comes back.
+
+**What went wrong.** pip-compile resolves for the interpreter and platform it
+runs on, and it *drops environment markers* for dependencies that are
+conditional upstream. `mcp` declares:
 
     pywin32>=310; sys_platform == 'win32' and python_version < '3.14'
 
-but the lockfile pins it unconditionally as `pywin32==312`, with no marker.
-`pip install -r requirements/lock-py311.txt` therefore **fails on Linux and
-macOS**: pywin32 publishes no distribution for those platforms.
+and the first, Windows-resolved cut of this file pinned it unconditionally as
+`pywin32==312`, with no marker, so `pip install -r requirements/lock-py311.txt`
+**failed on Linux and macOS**: pywin32 publishes no distribution for those
+platforms.
 
-This matters for any CI matrix that spans operating systems. Two workable
-remedies, in order of preference:
+**What the file looks like now.** Every platform-conditional pin carries its
+marker:
 
-1. Generate one lockfile per platform on that platform
-   (`lock-linux-py311.txt`, `lock-win-py311.txt`) and select by runner OS.
-2. Keep a single file and re-attach the marker to the `pywin32` block by hand
-   after every regeneration, i.e. `pywin32==312 ; sys_platform == "win32"`.
-   This is not reproducible from the command above, so it needs a check that
-   fails the build when the marker goes missing.
+    colorama==0.4.6 ; sys_platform == 'win32'
+    pywin32==312 ; sys_platform == 'win32'
+    pywin32-ctypes==0.2.3 ; sys_platform == 'win32'
+    tzdata==2026.3 ; sys_platform == 'win32'
 
-**Resolution history (2026-08-09).** The first CI run failed on ubuntu
-exactly as predicted above; remedy 2 (hand-attached marker) was applied and
-turned out to be insufficient - the second CI run then failed on the *other*
-half of the same defect: a Windows-resolved lock omits linux-only transitive
-dependencies entirely (`secretstorage`/`jeepney` via `keyring`), which pip's
-hash-checking mode rejects as unpinned. The durable fix was neither remedy
-but a resolver change: `uv pip compile --universal` (see Regenerate above),
-which emits every platform's pins with markers in one file. The failing
-check remains the CI matrix itself - a regeneration that loses markers or
-drops a platform's pins turns the ubuntu jobs red on the next push.
+The linux-only half of the graph, which a Windows resolution had omitted
+outright, is present too:
 
-pip-tools 7.x has no universal-resolution mode that would avoid this; that
-capability exists only in other resolvers.
+    jeepney==0.9.0 ; sys_platform == 'linux'
+    secretstorage==3.5.0 ; sys_platform == 'linux'
+
+**How it got fixed.** Two remedies were considered and *neither* is what the
+file uses today:
+
+1. One lockfile per platform, generated on that platform
+   (`lock-linux-py311.txt`, `lock-win-py311.txt`), selected by runner OS.
+2. A single file with the `pywin32` marker re-attached by hand after every
+   regeneration. Not reproducible from the regeneration command, so it would
+   have needed a check that fails the build when the marker goes missing.
+
+Remedy 2 was actually applied, and it was not enough. The first CI run had
+failed on ubuntu exactly as described above; after the hand-attached marker,
+the second CI run failed on the *other* half of the same defect - a
+Windows-resolved lock omits linux-only transitive dependencies entirely
+(`secretstorage`/`jeepney` via `keyring`), which pip's hash-checking mode
+rejects as unpinned. The durable fix was neither remedy but a resolver change:
+`uv pip compile --universal` (see Regenerate above), which emits every
+platform's pins with markers in one file.
+
+pip-tools 7.x has no universal-resolution mode that would have avoided the
+marker loss; that capability exists only in other resolvers, which is why the
+fix had to be a resolver swap rather than a flag.
+
+The guard is still the CI matrix itself - a regeneration that loses markers or
+drops a platform's pins turns the ubuntu jobs red on the next push. There is no
+separate marker lint.
 
 ## Scope note
 

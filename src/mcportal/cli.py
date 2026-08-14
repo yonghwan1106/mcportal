@@ -1723,6 +1723,14 @@ def _cmd_serve(args: argparse.Namespace) -> int:
                 f"replay 카세트가 없습니다: {cassette_path}",
                 hints=[
                     "기본 모드(--replay)는 이 파일을 재생합니다.",
+                    "인증키 없이 가는 길: 카세트는 리포에만 있고 wheel 로는 나가지 "
+                    "않으므로, 리포를 클론했다면 그 프리셋 루트를 가리키면 됩니다.",
+                    f"`{PROGRAM} serve {info.preset_id} --replay --presets-root "
+                    "<체크아웃>/presets` 또는 환경변수 "
+                    "`MCPORTAL_PRESETS=<체크아웃>/presets`.",
+                    "단, 가리킨 번들에 카세트가 실제로 있어야 합니다(개인정보 축 "
+                    "프리셋은 리포에도 카세트가 없어 라이브 전용입니다).",
+                    "인증키가 있다면 아래 두 갈래도 됩니다.",
                     f"`{PROGRAM} sample {info.preset_id} --key-env VAR` 로 카세트를 "
                     "녹화하거나,",
                     f"`{PROGRAM} serve {info.preset_id} --key-env VAR` 로 라이브 "

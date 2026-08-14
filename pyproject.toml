@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcportal"
-version = "0.2.1"
+version = "0.2.2"
 description = "Quota-guarded runtime layer bridging Korean public data APIs (data.go.kr) into the MCP ecosystem"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -101,12 +101,35 @@ packages = ["src/mcportal"]
 # `FileNotFoundError: Forced include not found:` 로 즉시 죽는다. 조용히 빠진
 # wheel 이 나가는 것보다 빌드가 깨지는 편이 낫다(번들 무결성 검사 겸용).
 #
+# ── W6 정정: sampled_schemas.json 은 "증거물"이 아니라 **빌드 입력**이었다 ──
+# W5 까지 이 자리에는 "sampled_schemas.json 은 측정 증거이므로 싣지 않는다,
+# 재현·검증(compile --check)은 리포 체크아웃 워크플로우다" 라고 적혀 있었다.
+# 2026-08-15 W6 클린 재현에서 그 전제가 **틀렸음이 실측으로 드러났다**:
+# PyPI 설치본에서 `mcportal compile --check` 가 `4건 중 3건 드리프트 / exit 3`
+# 으로 죽는다(리포 체크아웃에서는 4/4 일치). 원인은 --check 가 파일을 비교하는
+# 게 아니라 **layered 소스에서 openapi.json 을 재합성해 대조**하기 때문이다.
+# 샘플링된 번들 3종(15000115·15101612·15102108)의 openapi.json 은
+# source + curation + sampled 3층의 합성물인데, wheel 에 3층이 빠져 있으니
+# 설치본에서 재합성하면 실측 스키마가 통째로 없는 문서가 나온다. 즉 빠진 것은
+# 증거가 아니라 산출물을 만든 입력이고, 그래서 wheel 은 자기 자신이 실은
+# openapi.json 을 재현하지 못하는 상태였다. 3개 합계 약 30.5KB(25,033 +
+# 3,259 + 2,928 = 31,220 바이트)로 배포 부담도 사실상 없다.
+#
+# 카세트는 **계속 싣지 않는다**(박용환 결정, 2026-08-15). 두 가지 이유다:
+# ① cassettes/·samples/ 는 data.go.kr 실응답 원문이라 공공누리 재배포 조건과
+#    스크러빙 검토가 선행되어야 한다. sampled_schemas.json 은 응답 본문이 아니라
+#    거기서 추론한 **스키마(타입·필수 여부)** 만 담은 파생물이라 성질이 다르다.
+# ② 카세트를 실어도 `--replay` 가 4/4 가 되지 않는다. 15081808 은 리포에도
+#    카세트가 없어서 애초에 성립하지 않는 목표다.
+# 설치본에서 리플레이가 필요한 사용자의 우회로는 이미 있고 README 가 안내한다 —
+# `--presets-root <checkout>` 또는 `MCPORTAL_PRESETS=<checkout>`.
+#
 # 실린 것: 번들 4종 × {source,curation,openapi}.json + README.md = 16 파일,
-# 프리셋 루트 문서 2 파일. 실리지 않는 것: _raw/·_transcribed/(원문 증거물,
-# 포털 스냅샷·관세청 xlsx 저작권 판단 대상)·_MANIFEST_*.json·cassettes/·
-# samples/·sampled_schemas.json(실키 샘플링 증거·측정 데이터 — wheel 의
-# openapi.json 은 이미 확정 스키마를 담은 완성품이고, 재현·검증(compile
-# --check)은 리포 체크아웃 워크플로우다. 경계: wheel=소비, 리포=재현 전체).
+# 샘플링 번들 3종의 sampled_schemas.json 3 파일, 프리셋 루트 문서 2 파일 = 21.
+# 실리지 않는 것: _raw/·_transcribed/(원문 증거물, 포털 스냅샷·관세청 xlsx
+# 저작권 판단 대상)·_MANIFEST_*.json·cassettes/·samples/.
+# 경계 재정의: wheel = 소비 + 산출물 재현(compile --check), 리포 = 재샘플링까지
+# 포함한 전체 재현(sample·record·replay).
 [tool.hatch.build.targets.wheel.force-include]
 "presets/README.md" = "mcportal/presets/README.md"
 "presets/NOTICE-DATA.md" = "mcportal/presets/NOTICE-DATA.md"
@@ -115,7 +138,12 @@ packages = ["src/mcportal"]
 "presets/15000115/curation.json" = "mcportal/presets/15000115/curation.json"
 "presets/15000115/openapi.json" = "mcportal/presets/15000115/openapi.json"
 "presets/15000115/README.md" = "mcportal/presets/15000115/README.md"
+"presets/15000115/sampled_schemas.json" = "mcportal/presets/15000115/sampled_schemas.json"
 
+# 15081808 에는 sampled_schemas.json 이 없다(샘플링하지 않은 번들). 파일 단위
+# 매핑이라 없는 경로를 적으면 빌드가 FileNotFoundError 로 죽으므로 적지 않는다 —
+# 이 번들의 openapi.json 은 source + curation 2층만의 합성물이라 sampled 층 없이
+# compile --check 가 일치한다.
 "presets/15081808/source.json" = "mcportal/presets/15081808/source.json"
 "presets/15081808/curation.json" = "mcportal/presets/15081808/curation.json"
 "presets/15081808/openapi.json" = "mcportal/presets/15081808/openapi.json"
@@ -125,11 +153,13 @@ packages = ["src/mcportal"]
 "presets/15101612/curation.json" = "mcportal/presets/15101612/curation.json"
 "presets/15101612/openapi.json" = "mcportal/presets/15101612/openapi.json"
 "presets/15101612/README.md" = "mcportal/presets/15101612/README.md"
+"presets/15101612/sampled_schemas.json" = "mcportal/presets/15101612/sampled_schemas.json"
 
 "presets/15102108/source.json" = "mcportal/presets/15102108/source.json"
 "presets/15102108/curation.json" = "mcportal/presets/15102108/curation.json"
 "presets/15102108/openapi.json" = "mcportal/presets/15102108/openapi.json"
 "presets/15102108/README.md" = "mcportal/presets/15102108/README.md"
+"presets/15102108/sampled_schemas.json" = "mcportal/presets/15102108/sampled_schemas.json"
 
 [tool.hatch.build.targets.sdist]
 # wheel 은 packages 로 좁혀 놨지만 sdist 는 기본값이 "gitignore 만 존중하고 리포

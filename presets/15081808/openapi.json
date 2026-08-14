@@ -431,7 +431,7 @@
       "source_fingerprint": "sha256:dfa94d9a37d64ecad3e2af900bd1a6c2216922bfd103e907bb411f12e295b0cc",
       "source_kind": "odcloud_swagger",
       "source_url": "https://www.data.go.kr/data/15081808/openapi.do",
-      "tool_version": "0.2.1"
+      "tool_version": "0.2.2"
     }
   },
   "openapi": "3.1.0",

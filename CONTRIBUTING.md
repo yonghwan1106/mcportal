@@ -66,13 +66,38 @@ supported in the package classifiers.
 python -m venv .venv
 .venv\Scripts\activate                                     # Windows
 . .venv/bin/activate                                       # POSIX
-python -m pip install -e ".[dev]" -c requirements/lock-py311.txt
+python -m pip install -r requirements/lock-py311.txt
+python -m pip install -e . --no-deps
 ```
 
-The `-c` constraint file pins the full development and MCP dependency graph so
-that everyone resolves the same versions. It is introduced by the packaging work
-in the same release as this document; if your checkout predates it and the file
-is absent, install without `-c` and expect free resolution instead.
+Two steps, and the order matters. `requirements/lock-py311.txt` is a
+`uv pip compile --universal --generate-hashes` output: every pin in it carries
+its sha256 digests. Passing a hashed file to pip — as `-r` or as `-c` — switches
+pip into hash-checking mode, and in that mode pip refuses a local project
+directory outright, because a directory has no single file to hash. So the
+one-line form fails immediately on a fresh clone:
+
+```
+python -m pip install -e ".[dev]" -c requirements/lock-py311.txt
+ERROR: The editable requirement file:///.../mcportal cannot be installed when
+requiring hashes, because there is no single file to hash.
+```
+
+That is not a pip-version artefact — the same error appears on pip 24.0 and on
+pip 26.2.1. Splitting the install avoids the conflict and is stricter than the
+one-liner would have been: line 1 installs the pinned `[dev]` + `[mcp]` graph
+with the hashes actually **verified** (a `-c` file only constrains versions;
+`-r` enforces the digests), and line 2 adds MCPortal itself editable, with
+`--no-deps` because the graph is already in place. The lockfile contains no
+entry for `mcportal` itself, so the two steps do not fight. These are the same
+two lines `.github/workflows/ci.yml` runs on all three matrix legs (ubuntu 3.11,
+ubuntu 3.12, windows 3.11). CI upgrades pip before them; you do not have to —
+the pair works on the pip 24.0 that `venv` bundles with Python 3.11.
+
+If your checkout predates the lockfile and the file is absent, fall back to
+`python -m pip install -e ".[dev]"` and expect free resolution instead.
+`requirements/README.md` covers the lockfile in full, including how to
+regenerate it.
 
 Two rules govern dependencies:
 

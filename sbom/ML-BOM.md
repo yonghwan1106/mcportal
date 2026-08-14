@@ -17,7 +17,7 @@
 | Item | Value |
 | --- | --- |
 | Subject | The **local demonstration stack** used to show an MCPortal-compiled MCP server being driven by a model — not the `mcportal` distribution |
-| Not in scope | The `mcportal` package's own dependency graph. That is a software BOM, produced separately in CycloneDX form by the release tooling, and it is the authoritative document for what ships to PyPI |
+| Not in scope | The `mcportal` package's own dependency graph. That is a software BOM, produced separately in CycloneDX form by the `sbom` job in `.github/workflows/ci.yml`, with a point-in-time snapshot committed under `sbom/` (provenance and staleness: see `PROVENANCE.md`), and it is the authoritative document for what ships to PyPI |
 | Runtime dependency impact | **None.** Nothing here becomes a dependency of `mcportal`; the core runtime dependency stays httpx alone |
 | Network | The stack is intended to run locally with open-weight models. Whether any component reaches the network at demo time is itself [TO BE VERIFIED — W5] |
 | Status | PLACEHOLDER SKELETON. Not published, not attached to a release |
